@@ -1,0 +1,23 @@
+<template>
+  <div class="my-layout h100" :style="`position: ${state.isMobile ? 'relative' : 'absolute'}`">
+    <slot></slot>
+  </div>
+</template>
+
+<script lang="ts" setup name="my-layout">
+import mittBus from '/@/utils/mitt'
+import { t } from '/@/i18n'
+
+const state = reactive({
+  isMobile: document.body.clientWidth < 1000,
+})
+
+// 页面加载前
+onBeforeMount(() => {
+  // 监听窗口大小改变时(适配移动端)
+  mittBus.on('layoutMobileResize', (res: LayoutMobileResize) => {
+    // 判断是否是手机端
+    state.isMobile = res.clientWidth < 1000
+  })
+})
+</script>

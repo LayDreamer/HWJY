@@ -1,0 +1,70 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<Description>MyApp接口契约库</Description>
+		<Version>1.0.0</Version>
+		<OpenApiGenerateDocuments>false</OpenApiGenerateDocuments>
+		<TargetFramework>net10.0</TargetFramework>
+		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<DocumentationFile>$(MSBuildProjectName).xml</DocumentationFile>
+		<IsPackable>true</IsPackable>
+		<Authors>xiaoxue</Authors>
+		<Company>zhontai</Company>
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<PackageProjectUrl>https://admin.zhontai.net</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/zhontai/Admin.Core</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageTags>ZhonTai Admin Api Contracts;</PackageTags>
+		<NoWarn>1701;1702;1591;8632;SYSLIB0020;CS8002;NU1902;NU1903;NU1904;</NoWarn>
+		<SignAssembly>true</SignAssembly>
+		<DelaySign>false</DelaySign>
+		<AssemblyOriginatorKeyFile>key.snk</AssemblyOriginatorKeyFile>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="ZhonTai.Admin.Core" Version="10.0.4-preview26042901">
+			<IsBuild>true</IsBuild>
+		</PackageReference>
+		<PackageReference Include="ZhonTai.Admin.Contracts" Version="10.0.4-preview26042901">
+			<IsBuild>true</IsBuild>
+		</PackageReference>
+		<!--#if (IsSys) -->
+		<PackageReference Include="ZhonTai.Admin" Version="10.0.4-preview26042901">
+			<IsBuild>true</IsBuild>
+		</PackageReference>
+		<!--#endif -->
+	</ItemGroup>
+
+	<ItemGroup>
+		<Folder Include="Domain\" />
+		<Folder Include="Services\" />
+	</ItemGroup>
+
+	<Target Name="AfterTargetsBuild" AfterTargets="Build">
+		<ItemGroup>
+<!--/-:msbuild-conditional:noEmit -->
+			<PackageReferenceXmlFiles Condition="'%(PackageReference.IsBuild)' == 'true'" Include="$(NugetPackageRoot)\$([MSBuild]::Escape('%(PackageReference.Identity)').ToLower())\%(PackageReference.Version)\**\*.xml" />
+<!--/+:msbuild-conditional:noEmit -->
+<!--/-:msbuild-conditional:noEmit -->
+			<PackageReferenceJsonFiles Condition="'%(PackageReference.IsBuild)' == 'true'" Include="$(NugetPackageRoot)\$([MSBuild]::Escape('%(PackageReference.Identity)').ToLower())\%(PackageReference.Version)\**\*.json" />
+<!--/+:msbuild-conditional:noEmit -->
+		</ItemGroup>
+
+<!--/-:msbuild-conditional:noEmit -->
+		<Copy Condition="'%(PackageReferenceXmlFiles.Identity)' != ''" SourceFiles="@(PackageReferenceXmlFiles)" DestinationFolder="./../MyApp.Host/$(OutDir)" />
+<!--/+:msbuild-conditional:noEmit -->
+<!--/-:msbuild-conditional:noEmit -->
+		<Copy Condition="'%(PackageReferenceJsonFiles.Identity)' != ''" SourceFiles="@(PackageReferenceJsonFiles)" DestinationFolder="./../MyApp.Host/$(OutDir)Resources" />
+<!--/+:msbuild-conditional:noEmit -->
+		<!--#if (!NoTests) -->
+<!--/-:msbuild-conditional:noEmit -->
+		<Copy Condition="'%(PackageReferenceXmlFiles.Identity)' != ''" SourceFiles="@(PackageReferenceXmlFiles)" DestinationFolder="./../MyApp.Tests/$(OutDir)" />
+<!--/+:msbuild-conditional:noEmit -->
+<!--/-:msbuild-conditional:noEmit -->
+		<Copy Condition="'%(PackageReferenceJsonFiles.Identity)' != ''" SourceFiles="@(PackageReferenceJsonFiles)" DestinationFolder="./../MyApp.Tests/$(OutDir)Resources" />
+<!--/+:msbuild-conditional:noEmit -->
+		<!--#endif -->
+	</Target>
+</Project>

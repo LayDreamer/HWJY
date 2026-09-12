@@ -1,0 +1,13 @@
+{
+  "AppConfig": {
+    "appType": "Controllers",
+    "urls": [ "http://*:18030" ],
+    "assemblyNames": [ "Company.MasterData" ],
+    "EnumListAssemblyNames": [ "Company.MasterData", "Company.MasterData.Contracts" ],
+    "tenant": true,
+    "validate": { "login": true, "permission": true, "dataPermission": true, "apiDataPermission": true },
+    "swagger": { "enable": true, "routePrefix": "doc/master-data/swagger", "url": "http://localhost:18030", "projects": [ { "name": "Company MasterData", "code": "master-data", "version": "v1", "description": "Company.MasterData" } ] },
+    "apiUI": { "enable": true, "routePrefix": "doc/master-data" },
+    "dynamicApi": { "formatResult": true }
+  }
+}

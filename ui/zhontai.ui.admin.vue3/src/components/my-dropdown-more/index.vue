@@ -1,0 +1,50 @@
+<template>
+  <el-dropdown placement="bottom-end" style="margin-left: 10px" v-bind="$attrs">
+    <slot>
+      <el-button text type="primary"
+        >{{ innerButtonText }}<el-icon class="el-icon--right" v-bind="$attrs"><component :is="innerIcon" /></el-icon
+      ></el-button>
+    </slot>
+    <template #dropdown>
+      <slot name="dropdown" />
+    </template>
+  </el-dropdown>
+</template>
+
+<script lang="ts">
+import { t } from '/@/i18n'
+
+export default defineComponent({
+  name: 'MyDropdownMore',
+  props: {
+    iconOnly: {
+      type: Boolean,
+      default: false,
+    },
+    icon: {
+      type: String as PropType<string | undefined | null>,
+      default: '',
+    },
+    buttonText: {
+      type: String as PropType<string | undefined | null>,
+      default: '',
+    },
+  },
+  setup(props) {
+    const innerIcon = computed(() => {
+      return props.icon ? props.icon : props.iconOnly ? 'ele-MoreFilled' : 'ele-ArrowDown'
+    })
+
+    const innerButtonText = computed(() => {
+      return props.iconOnly ? '' : props.buttonText ? props.buttonText : t('更多')
+    })
+
+    return {
+      innerIcon,
+      innerButtonText,
+    }
+  },
+})
+</script>
+
+<style scoped lang="scss"></style>

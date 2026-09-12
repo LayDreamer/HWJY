@@ -1,0 +1,60 @@
+{
+  "SettingsId": "2b14968a-f3ca-4849-bcad-5d4f210d2960",
+  "Profiles": [
+    {
+      "Name": "Default",
+      "LoggingTargetType": 0,
+      "LoggingPath": "./.logs",
+      "LoggerUrl": null,
+      "UseTye": true,
+      "TyePort": 10000,
+      "Filter": ".Host",
+      "Services": [
+        {
+          "ServiceType": 0,
+          "Name": "ZhonTai.Gateway.Yarp.Host",
+          "TyeName": null,
+          "ProjectFile": "gateways\\ZhonTai.Gateway.Yarp.Host\\ZhonTai.Gateway.Yarp.Host.csproj",
+          "DefaultSelected": true,
+          "Bindings": "::16010",
+          "Arguments": null,
+          "EnvVariables": null,
+          "Replicas": 1
+        },
+        {
+          "ServiceType": 0,
+          "Name": "ZhonTai.IMServer.Host",
+          "TyeName": null,
+          "ProjectFile": "modules\\im\\ZhonTai.IMServer.Host\\ZhonTai.IMServer.Host.csproj",
+          "DefaultSelected": false,
+          "Bindings": "::17010",
+          "Arguments": null,
+          "EnvVariables": null,
+          "Replicas": 1
+        },
+        {
+          "ServiceType": 0,
+          "Name": "ZhonTai.Admin.Host",
+          "TyeName": null,
+          "ProjectFile": "modules\\admin\\ZhonTai.Admin.Host\\ZhonTai.Admin.Host.csproj",
+          "DefaultSelected": true,
+          "Bindings": "::18010",
+          "Arguments": null,
+          "EnvVariables": null,
+          "Replicas": 1
+        },
+        {
+          "ServiceType": 0,
+          "Name": "ZhonTai.Module.Dev.Host",
+          "TyeName": null,
+          "ProjectFile": "modules\\dev\\ZhonTai.Module.Dev\\ZhonTai.Module.Dev.Host\\ZhonTai.Module.Dev.Host.csproj",
+          "DefaultSelected": true,
+          "Bindings": "::18020",
+          "Arguments": null,
+          "EnvVariables": null,
+          "Replicas": 1
+        }
+      ]
+    }
+  ]
+}

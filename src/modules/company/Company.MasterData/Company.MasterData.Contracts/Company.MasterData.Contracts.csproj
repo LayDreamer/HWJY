@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Company MasterData contracts</Description>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\admin\ZhonTai.Admin.Contracts\ZhonTai.Admin.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\admin\ZhonTai.Admin.Core\ZhonTai.Admin.Core.csproj" />
+  </ItemGroup>
+</Project>

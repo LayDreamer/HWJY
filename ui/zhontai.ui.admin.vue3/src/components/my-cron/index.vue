@@ -1,0 +1,295 @@
+<template>
+  <div>
+    <el-tabs type="border-card">
+      <el-tab-pane :label="t('秒')" v-if="shouldHide('second')">
+        <CrontabSecond @update="updateCrontabValue" :check="checkNumber" :cron="crontabValueObj" ref="cronsecond" />
+      </el-tab-pane>
+
+      <el-tab-pane :label="t('分钟')" v-if="shouldHide('min')">
+        <CrontabMin @update="updateCrontabValue" :check="checkNumber" :cron="crontabValueObj" ref="cronmin" />
+      </el-tab-pane>
+
+      <el-tab-pane :label="t('小时')" v-if="shouldHide('hour')">
+        <CrontabHour @update="updateCrontabValue" :check="checkNumber" :cron="crontabValueObj" ref="cronhour" />
+      </el-tab-pane>
+
+      <el-tab-pane :label="t('日')" v-if="shouldHide('day')">
+        <CrontabDay @update="updateCrontabValue" :check="checkNumber" :cron="crontabValueObj" ref="cronday" />
+      </el-tab-pane>
+
+      <el-tab-pane :label="t('月')" v-if="shouldHide('month')">
+        <CrontabMonth @update="updateCrontabValue" :check="checkNumber" :cron="crontabValueObj" ref="cronmonth" />
+      </el-tab-pane>
+
+      <el-tab-pane :label="t('周')" v-if="shouldHide('week')">
+        <CrontabWeek @update="updateCrontabValue" :check="checkNumber" :cron="crontabValueObj" ref="cronweek" />
+      </el-tab-pane>
+
+      <el-tab-pane :label="t('年')" v-if="shouldHide('year')">
+        <CrontabYear @update="updateCrontabValue" :check="checkNumber" :cron="crontabValueObj" ref="cronyear" />
+      </el-tab-pane>
+    </el-tabs>
+
+    <div class="popup-result">
+      <p class="title">{{ t('时间表达式') }}</p>
+      <table>
+        <thead>
+          <th v-for="item of tabTitles" :key="item">{{ item }}</th>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <span v-if="crontabValueObj.second.length < 10">{{ crontabValueObj.second }}</span>
+              <el-tooltip v-else :content="crontabValueObj.second" placement="top"
+                ><span>{{ crontabValueObj.second }}</span></el-tooltip
+              >
+            </td>
+            <td>
+              <span v-if="crontabValueObj.min.length < 10">{{ crontabValueObj.min }}</span>
+              <el-tooltip v-else :content="crontabValueObj.min" placement="top"
+                ><span>{{ crontabValueObj.min }}</span></el-tooltip
+              >
+            </td>
+            <td>
+              <span v-if="crontabValueObj.hour.length < 10">{{ crontabValueObj.hour }}</span>
+              <el-tooltip v-else :content="crontabValueObj.hour" placement="top"
+                ><span>{{ crontabValueObj.hour }}</span></el-tooltip
+              >
+            </td>
+            <td>
+              <span v-if="crontabValueObj.day.length < 10">{{ crontabValueObj.day }}</span>
+              <el-tooltip v-else :content="crontabValueObj.day" placement="top"
+                ><span>{{ crontabValueObj.day }}</span></el-tooltip
+              >
+            </td>
+            <td>
+              <span v-if="crontabValueObj.month.length < 10">{{ crontabValueObj.month }}</span>
+              <el-tooltip v-else :content="crontabValueObj.month" placement="top"
+                ><span>{{ crontabValueObj.month }}</span></el-tooltip
+              >
+            </td>
+            <td>
+              <span v-if="crontabValueObj.week.length < 10">{{ crontabValueObj.week }}</span>
+              <el-tooltip v-else :content="crontabValueObj.week" placement="top"
+                ><span>{{ crontabValueObj.week }}</span></el-tooltip
+              >
+            </td>
+            <td>
+              <span v-if="crontabValueObj.year.length < 10">{{ crontabValueObj.year }}</span>
+              <el-tooltip v-else :content="crontabValueObj.year" placement="top"
+                ><span>{{ crontabValueObj.year }}</span></el-tooltip
+              >
+            </td>
+          </tr>
+          <tr>
+            <td class="result" colspan="8">
+              <span v-if="crontabValueString.length < 90">{{ crontabValueString }}</span>
+              <el-tooltip v-else :content="crontabValueString" placement="top"
+                ><span>{{ crontabValueString }}</span></el-tooltip
+              >
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <CrontabResult :ex="crontabValueString"></CrontabResult>
+
+    <div v-if="showBtns" class="pop_btn">
+      <el-button auto-insert-space type="primary" @click="submitFill">{{ t('确定') }}</el-button>
+      <el-button auto-insert-space type="warning" @click="clearCron">{{ t('重置') }}</el-button>
+      <el-button auto-insert-space @click="hidePopup">{{ t('取消') }}</el-button>
+    </div>
+  </div>
+</template>
+
+<script lang="ts" setup>
+import { t } from '/@/i18n'
+const CrontabSecond = defineAsyncComponent(() => import('./second.vue'))
+const CrontabMin = defineAsyncComponent(() => import('./min.vue'))
+const CrontabHour = defineAsyncComponent(() => import('./hour.vue'))
+const CrontabDay = defineAsyncComponent(() => import('./day.vue'))
+const CrontabMonth = defineAsyncComponent(() => import('./month.vue'))
+const CrontabWeek = defineAsyncComponent(() => import('./week.vue'))
+const CrontabYear = defineAsyncComponent(() => import('./year.vue'))
+const CrontabResult = defineAsyncComponent(() => import('./result.vue'))
+
+const emit = defineEmits(['hide', 'fill'])
+const props = defineProps({
+  hideComponent: {
+    type: Array,
+    default: () => [],
+  },
+  expression: {
+    type: String,
+    default: '',
+  },
+  showBtns: {
+    type: Boolean,
+    default: () => false,
+  },
+})
+const tabTitles = ref([t('秒'), t('分钟'), t('小时'), t('日'), t('月'), t('周'), t('年')])
+const hideComponentRef = ref([]) as any
+const expressionRef = ref('') as any
+const crontabValueObj = ref({
+  second: '*',
+  min: '*',
+  hour: '*',
+  day: '*',
+  month: '*',
+  week: '?',
+  year: '',
+}) as any
+const crontabValueString = computed(() => {
+  const obj = crontabValueObj.value
+  return obj.second + ' ' + obj.min + ' ' + obj.hour + ' ' + obj.day + ' ' + obj.month + ' ' + obj.week + (obj.year === '' ? '' : ' ' + obj.year)
+})
+watch(expressionRef, () => resolveExp())
+const shouldHide = (key: any) => {
+  return !(hideComponentRef.value && hideComponentRef.value.includes(key))
+}
+const resolveExp = () => {
+  // 反解析 表达式
+  if (expressionRef.value) {
+    const arr = expressionRef.value.split(/\s+/)
+    if (arr.length >= 6) {
+      //6 位以上是合法表达式
+      let obj = {
+        second: arr[0],
+        min: arr[1],
+        hour: arr[2],
+        day: arr[3],
+        month: arr[4],
+        week: arr[5],
+        year: arr[6] ? arr[6] : '',
+      }
+      crontabValueObj.value = {
+        ...obj,
+      }
+    }
+  } else {
+    // 没有传入的表达式 则还原
+    clearCron()
+  }
+}
+
+// 由子组件触发，更改表达式组成的字段值
+const updateCrontabValue = (name: any, value: any) => {
+  crontabValueObj.value[name] = value
+}
+// 表单选项的子组件校验数字格式（通过-props传递）
+const checkNumber = (value: any, minLimit: any, maxLimit: any) => {
+  // 检查必须为整数
+  value = Math.floor(value)
+  if (value < minLimit) {
+    value = minLimit
+  } else if (value > maxLimit) {
+    value = maxLimit
+  }
+  return value
+}
+// 隐藏弹窗
+const hidePopup = () => {
+  emit('hide')
+}
+// 填充表达式
+const submitFill = () => {
+  emit('fill', crontabValueString.value)
+  hidePopup()
+}
+const clearCron = () => {
+  // 还原选择项
+  crontabValueObj.value = {
+    second: '*',
+    min: '*',
+    hour: '*',
+    day: '*',
+    month: '*',
+    week: '?',
+    year: '',
+  }
+}
+// 获得表达式
+const getCron = () => {
+  return crontabValueString.value
+}
+onMounted(() => {
+  expressionRef.value = props.expression
+  hideComponentRef.value = props.hideComponent
+})
+defineExpose({
+  getCron,
+  clearCron,
+})
+</script>
+
+<style lang="scss" scoped>
+.pop_btn {
+  text-align: center;
+  margin-top: 20px;
+}
+.popup-main {
+  position: relative;
+  margin: 10px auto;
+  background: var(--el-bg-color-overlay);
+  border-radius: 5px;
+  font-size: 12px;
+  overflow: hidden;
+}
+.popup-title {
+  overflow: hidden;
+  line-height: 34px;
+  padding-top: 6px;
+  background: #f2f2f2;
+}
+.popup-result {
+  box-sizing: border-box;
+  line-height: 24px;
+  margin: 15px auto;
+  padding: 15px 10px 10px;
+  border: 1px solid var(--el-border-color-light);
+  position: relative;
+}
+.popup-result .title {
+  position: absolute;
+  top: -15px;
+  left: 50%;
+  width: 100px;
+  font-size: 14px;
+  margin-left: -50px;
+  text-align: center;
+  line-height: 30px;
+  background: var(--el-bg-color);
+}
+.popup-result table {
+  text-align: center;
+  width: 100%;
+  margin: 0 auto;
+}
+.popup-result table td:not(.result) {
+  width: 3.5rem;
+  min-width: 3.5rem;
+  max-width: 3.5rem;
+}
+.popup-result table span {
+  display: block;
+  width: 100%;
+  font-family: arial;
+  line-height: 30px;
+  height: 30px;
+  white-space: nowrap;
+  overflow: hidden;
+  border: 1px solid var(--el-border-color-light);
+}
+:deep() {
+  .popup-result-scroll {
+    font-size: 12px;
+    line-height: 24px;
+    height: 10em;
+    overflow-y: auto;
+    li {
+      list-style: none;
+    }
+  }
+}
+</style>

@@ -1,0 +1,11 @@
+{
+  "CacheConfig": {
+    //缓存类型 Memory = 0,Redis = 1
+    "type": "Memory",
+    //Redis配置
+    "redis": {
+      //连接字符串
+      "connectionString": "127.0.0.1:6379,password=,defaultDatabase=0"
+    }
+  }
+}

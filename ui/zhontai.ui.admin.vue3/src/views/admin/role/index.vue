@@ -1,0 +1,348 @@
+<template>
+  <MySplitter>
+    <el-splitter-panel size="45%" min="30%" max="60%">
+      <div class="my-flex-column w100 h100">
+        <el-card class="my-query-box mt8" shadow="never">
+          <el-form :inline="true" @submit.stop.prevent>
+            <el-form-item :label="t('角色名称')">
+              <el-input v-model="state.filter.roleName" :placeholder="t('角色名称')" @keyup.enter="onQuery" />
+            </el-form-item>
+            <el-form-item>
+              <el-button auto-insert-space type="primary" icon="ele-Search" @click="onQuery">{{ t('查询') }}</el-button>
+              <el-dropdown v-auth="'api:admin:role:add'" style="margin-left: 12px">
+                <el-button auto-insert-space type="primary">
+                  {{ t('新增') }}
+                  <el-icon class="el-icon--right">
+                    <ele-ArrowDown />
+                  </el-icon>
+                </el-button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item @click="onAdd(1)">{{ t('新增分组') }}</el-dropdown-item>
+                    <el-dropdown-item @click="onAdd(2)">{{ t('新增角色') }}</el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+            </el-form-item>
+          </el-form>
+        </el-card>
+
+        <el-card class="my-fill mt8" shadow="never">
+          <el-table
+            ref="roleTableRef"
+            v-loading="state.loading"
+            :data="state.roleTreeData"
+            row-key="id"
+            default-expand-all
+            :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
+            highlight-current-row
+            style="width: 100%"
+            border
+            @current-change="onCurrentChange"
+          >
+            <el-table-column prop="name" :label="t('角色名称')" min-width="120" show-overflow-tooltip />
+            <el-table-column prop="sort" :label="t('排序')" width="82" align="center" show-overflow-tooltip />
+            <el-table-column :label="t('操作')" width="100" fixed="right" header-align="center" align="right">
+              <template #default="{ row }">
+                <el-button v-if="row.type === 1" v-auth="'api:admin:role:add'" icon="ele-Plus" text type="primary" @click="onAdd(2, row)"></el-button>
+                <my-dropdown-more icon-only v-auths="['api:admin:permission:assign', 'api:admin:role:update', 'api:admin:role:delete']">
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item v-if="row.type === 2 && auth('api:admin:permission:assign')" @click="onSetRoleMenu(row)">
+                        {{ t('菜单权限') }}
+                      </el-dropdown-item>
+                      <el-dropdown-item v-if="row.type === 2" @click="onSetRoleDataScope(row)">{{ t('数据权限') }}</el-dropdown-item>
+                      <el-dropdown-item v-if="auth('api:admin:role:update')" @click="onEdit(row)">
+                        {{ row.type === 1 ? t('编辑分组') : t('编辑角色') }}
+                      </el-dropdown-item>
+                      <el-dropdown-item v-if="auth('api:admin:role:delete')" @click="onDelete(row)">
+                        {{ row.type === 1 ? t('删除分组') : t('删除角色') }}
+                      </el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </my-dropdown-more>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-card>
+      </div>
+    </el-splitter-panel>
+    <el-splitter-panel>
+      <div class="my-flex-column w100 h100">
+        <el-card class="my-query-box mt8" shadow="never" :body-style="{ paddingBottom: '0' }">
+          <el-form :inline="true" @submit.stop.prevent>
+            <el-form-item :label="t('姓名')">
+              <el-input v-model="state.filter.name" :placeholder="t('姓名')" @keyup.enter="onGetRoleUserList" />
+            </el-form-item>
+            <el-form-item>
+              <el-button auto-insert-space type="primary" icon="ele-Search" @click="onGetRoleUserList">
+                {{ t('查询') }}
+              </el-button>
+              <el-button v-auth="'api:admin:role:add-role-user'" type="primary" icon="ele-Plus" @click="onAddUser">
+                {{ t('添加员工') }}
+              </el-button>
+              <el-button v-auth="'api:admin:role:remove-role-user'" type="danger" icon="ele-Delete" @click="onRemoveUser">
+                {{ t('移除员工') }}
+              </el-button>
+            </el-form-item>
+          </el-form>
+        </el-card>
+
+        <el-card class="my-fill mt8" shadow="never">
+          <el-table
+            ref="userTableRef"
+            v-loading="state.userListLoading"
+            :data="state.userListData"
+            row-key="id"
+            style="width: 100%"
+            border
+            @row-click="onUserRowClick"
+          >
+            <el-table-column type="selection" width="55" />
+            <el-table-column prop="name" :label="t('姓名')" min-width="120" show-overflow-tooltip />
+            <el-table-column prop="mobile" :label="t('手机号')" min-width="120" show-overflow-tooltip />
+            <el-table-column prop="email" :label="t('邮箱')" min-width="180" show-overflow-tooltip />
+          </el-table>
+        </el-card>
+      </div>
+    </el-splitter-panel>
+
+    <role-form ref="roleFormRef" :title="state.roleFormTitle" :role-tree-data="state.roleFormTreeData"></role-form>
+    <user-select
+      ref="userSelectRef"
+      :title="t('添加【{name}】员工', { name: state.roleName })"
+      multiple
+      :sure-loading="state.sureLoading"
+      @sure="onSureUser"
+    ></user-select>
+    <set-role-menu ref="setRoleMenuRef"></set-role-menu>
+    <set-role-data-scope ref="setRoleDataScopeRef"></set-role-data-scope>
+  </MySplitter>
+</template>
+
+<script lang="ts" setup name="admin/role">
+import {
+  RoleGetListOutput,
+  RoleGetRoleUserListOutput,
+  UserGetPageOutput,
+  RoleAddRoleUserListInput,
+  RoleType,
+  RoleUpdateInput,
+} from '/@/api/admin/data-contracts'
+import { RoleApi } from '/@/api/admin/Role'
+import { listToTree, filterTree } from '/@/utils/tree'
+import { TableInstance } from 'element-plus'
+import { cloneDeep } from 'lodash-es'
+import eventBus from '/@/utils/mitt'
+import { auth } from '/@/utils/authFunction'
+import { t } from '/@/i18n'
+
+// 引入组件
+const RoleForm = defineAsyncComponent(() => import('./components/role-form.vue'))
+const SetRoleMenu = defineAsyncComponent(() => import('./components/set-role-menu.vue'))
+const SetRoleDataScope = defineAsyncComponent(() => import('./components/set-role-data-scope.vue'))
+const UserSelect = defineAsyncComponent(() => import('/@/views/admin/user/components/user-select.vue'))
+const MyDropdownMore = defineAsyncComponent(() => import('/@/components/my-dropdown-more/index.vue'))
+const MySplitter = defineAsyncComponent(() => import('/@/components/my-layout/splitter.vue'))
+
+const { proxy } = getCurrentInstance() as any
+
+const roleTableRef = useTemplateRef('roleTableRef')
+const roleFormRef = useTemplateRef('roleFormRef')
+const userTableRef = useTemplateRef<TableInstance>('userTableRef')
+const userSelectRef = useTemplateRef('userSelectRef')
+const setRoleMenuRef = useTemplateRef('setRoleMenuRef')
+const setRoleDataScopeRef = useTemplateRef('setRoleDataScopeRef')
+
+const state = reactive({
+  loading: false,
+  userListLoading: false,
+  sureLoading: false,
+  roleFormTitle: '',
+  filter: {
+    name: '',
+    roleName: '',
+  },
+  roleTreeData: [] as any,
+  roleFormTreeData: [] as any,
+  userListData: [] as RoleGetRoleUserListOutput[],
+  roleId: undefined as number | undefined,
+  roleName: '' as string | null | undefined,
+})
+
+onMounted(() => {
+  onQuery()
+  eventBus.off('refreshRole')
+  eventBus.on('refreshRole', async () => {
+    onQuery()
+  })
+})
+
+onBeforeMount(() => {
+  eventBus.off('refreshRole')
+})
+
+const onQuery = async () => {
+  state.loading = true
+  const res = await new RoleApi().getList().catch(() => {
+    state.loading = false
+  })
+  if (res && res.data && res.data.length > 0) {
+    state.roleTreeData = filterTree(listToTree(cloneDeep(res.data)), state.filter.roleName)
+    state.roleFormTreeData = listToTree(cloneDeep(res.data).filter((a) => a.parentId === 0))
+    if (state.roleTreeData.length > 0 && state.roleTreeData[0].children?.length > 0) {
+      nextTick(() => {
+        roleTableRef.value!.setCurrentRow(state.roleTreeData[0].children[0])
+      })
+    }
+  } else {
+    state.roleTreeData = []
+    state.roleFormTreeData = []
+  }
+
+  state.loading = false
+}
+
+const onAdd = (type: RoleType, row: RoleGetListOutput | undefined = undefined) => {
+  switch (type) {
+    case 1:
+      state.roleFormTitle = t('新增分组')
+      roleFormRef.value?.open({ id: 0, type: 1 })
+      break
+    case 2:
+      state.roleFormTitle = t('新增角色')
+      roleFormRef.value?.open({ id: 0, type: 2, parentId: row?.id })
+      break
+  }
+}
+
+const onEdit = (row: RoleGetListOutput) => {
+  switch (row.type) {
+    case 1:
+      state.roleFormTitle = t('编辑分组')
+      break
+    case 2:
+      state.roleFormTitle = t('编辑角色')
+      break
+  }
+  roleFormRef.value?.open(row as RoleUpdateInput)
+}
+
+const onDelete = (row: RoleGetListOutput) => {
+  proxy.$modal
+    .confirmDelete(t('确定要删除角色【{name}】?', { name: row.name }))
+    .then(async () => {
+      await new RoleApi().delete({ id: row.id }, { loading: true })
+      onQuery()
+    })
+    .catch(() => {})
+}
+
+const onGetRoleUserList = async () => {
+  state.userListLoading = true
+  const res = await new RoleApi().getRoleUserList({ RoleId: state.roleId, Name: state.filter.name }).catch(() => {
+    state.userListLoading = false
+  })
+  state.userListLoading = false
+  if (res?.success) {
+    if (res.data && res.data.length > 0) {
+      state.userListData = res.data
+    } else {
+      state.userListData = []
+    }
+  }
+}
+
+const onCurrentChange = (currentRow: RoleGetListOutput, oldCurrentRow: RoleGetListOutput) => {
+  if (!currentRow) {
+    return
+  }
+
+  if (currentRow?.id !== oldCurrentRow?.id && (oldCurrentRow?.id as number) > 0) {
+    if ((currentRow?.parentId as number) === 0) {
+      roleTableRef.value!.setCurrentRow(oldCurrentRow)
+    }
+  } else {
+    if ((currentRow?.parentId as number) === 0) {
+      roleTableRef.value!.setCurrentRow(null)
+    }
+  }
+
+  if ((currentRow?.parentId as number) !== 0 && (oldCurrentRow?.parentId as number) !== 0 && (currentRow?.id as number) > 0) {
+    state.roleId = currentRow.id
+    state.roleName = currentRow.name
+    onGetRoleUserList()
+  }
+}
+
+const onUserRowClick = (row: RoleGetRoleUserListOutput) => {
+  userTableRef.value!.toggleRowSelection(row, undefined)
+}
+
+const onAddUser = () => {
+  if (!((state.roleId as number) > 0)) {
+    proxy.$modal.msgWarning(t('请选择角色'))
+    return
+  }
+  userSelectRef.value?.open()
+}
+
+const onRemoveUser = () => {
+  if (!((state.roleId as number) > 0)) {
+    proxy.$modal.msgWarning(t('请选择角色'))
+    return
+  }
+
+  const selectionRows = userTableRef.value!.getSelectionRows() as UserGetPageOutput[]
+
+  if (!((selectionRows.length as number) > 0)) {
+    proxy.$modal.msgWarning(t('请选择员工'))
+    return
+  }
+
+  proxy.$modal
+    .confirm(t('确定要移除吗?'))
+    .then(async () => {
+      const userIds = selectionRows?.map((a) => a.id)
+      const input = { roleId: state.roleId, userIds } as RoleAddRoleUserListInput
+      await new RoleApi().removeRoleUser(input, { loading: true })
+      onGetRoleUserList()
+    })
+    .catch(() => {})
+}
+
+const onSureUser = async (users: UserGetPageOutput[]) => {
+  if (!(users?.length > 0)) {
+    userSelectRef.value?.close()
+    return
+  }
+
+  state.sureLoading = true
+  const userIds = users?.map((a) => a.id)
+  const input = { roleId: state.roleId, userIds } as RoleAddRoleUserListInput
+  await new RoleApi().addRoleUser(input, { showSuccessMessage: true }).catch(() => {
+    state.sureLoading = false
+  })
+  state.sureLoading = false
+  userSelectRef.value?.close()
+  onGetRoleUserList()
+}
+
+const onSetRoleMenu = (role: RoleGetListOutput) => {
+  if (!((role?.id as number) > 0)) {
+    proxy.$modal.msgWarning(t('请选择角色'))
+    return
+  }
+  setRoleMenuRef.value?.open(role)
+}
+
+const onSetRoleDataScope = (role: RoleGetListOutput) => {
+  if (!((role?.id as number) > 0)) {
+    proxy.$modal.msgWarning(t('请选择角色'))
+    return
+  }
+  setRoleDataScopeRef.value?.open(role)
+}
+</script>
+
+<style scoped lang="scss"></style>

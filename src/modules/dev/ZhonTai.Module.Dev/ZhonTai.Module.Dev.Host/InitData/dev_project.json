@@ -1,0 +1,19 @@
+[
+  {
+    "id": 564644154150981,
+    "name": "家常管理",
+    "code": "homely",
+    "isEnable": true,
+    "groupId": 564640973246533,
+    "remark": null,
+    "isDeleted": false,
+    "createdUserId": 161223411986501,
+    "createdUserName": "admin",
+    "createdUserRealName": "管理员",
+    "createdTime": "2024-07-03T22:42:57",
+    "modifiedUserId": 161223411986501,
+    "modifiedUserName": "admin",
+    "modifiedUserRealName": "管理员",
+    "modifiedTime": "2024-07-04T00:26:34"
+  }
+]

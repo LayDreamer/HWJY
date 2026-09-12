@@ -1,0 +1,11 @@
+{
+  "DbConfig": {
+    "key": "masterdatadb",
+    "assemblyNames": [ "Company.MasterData.Contracts" ],
+    "createDb": true,
+    "syncStructure": true,
+    "syncData": false,
+    "type": "Sqlite",
+    "connectionString": "Data Source=|DataDirectory|\\masterdatadb.db; Pooling=true;Min Pool Size=1"
+  }
+}

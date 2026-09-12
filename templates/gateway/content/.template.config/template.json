@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "中台团队",
+  "classifications": [ "ZhonTai", "Gateway", "MyGateway" ],
+  "name": "ZhonTai.Template Gateway 网关项目模板",
+  "identity": "MyGateway",
+  "shortName": "MyGateway",
+  "tags": {
+    "language": "C#",
+    "type": "project"
+  },
+  "sourceName": "MyGateway",
+  "preferNameDirectory": true,
+  "symbols": {
+	"Port": {
+		"type": "parameter",
+		"datatype": "int",
+		"isRequired": false,
+		"defaultValue": "16010",
+		"replaces": "16010",
+		"description": "Port settings"
+	},
+  },
+  "sources": [
+  ]
+}

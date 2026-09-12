@@ -1,0 +1,234 @@
+{
+	"$schema": "http://json.schemastore.org/template",
+	"author": "中台团队",
+	"classifications": [ "ZhonTai", "WebApi", "App", "MyApp" ],
+	"name": "ZhonTai.Template.App 应用接口项目模板",
+	"identity": "MyApp",
+	"shortName": "MyApp",
+	"tags": {
+		"language": "C#",
+		"type": "project"
+	},
+	"sourceName": "MyApp",
+	"preferNameDirectory": true,
+	"symbols": {
+		"AppType": {
+			"type": "parameter",
+			"datatype": "choice",
+			"choices": [
+				{
+					"choice": "sys"
+				},
+				{
+					"choice": "app"
+				},
+				{
+					"choice": "mem"
+				}
+			],
+			"defaultValue": "app"
+		},
+		"IsSys": {
+			"type": "computed",
+			"value": "AppType == sys"
+		},
+		"IsApp": {
+			"type": "computed",
+			"value": "AppType == app"
+		},
+		"IsMem": {
+			"type": "computed",
+			"value": "AppType == mem"
+		},
+		"AppCode": {
+			"type": "parameter",
+			"datatype": "string",
+			"defaultValue": ""
+		},
+		"AppCodeReplacer": {
+			"type": "generated",
+			"generator": "coalesce",
+			"parameters": {
+				"sourceVariableName": "AppCode",
+				"fallbackVariableName": "AppType"
+			},
+			"replaces": "__app_code",
+			"fileRename": "__app_code"
+		},
+		"Port": {
+			"type": "parameter",
+			"datatype": "int",
+			"defaultValue": "",
+			"replaces": "16010",
+			"isRequired": true
+		},
+		"GrpcPort": {
+			"type": "parameter",
+			"datatype": "int",
+			"defaultValue": "",
+			"replaces": "16011",
+			"isRequired": true
+		},
+		"SecurityKey": {
+			"type": "parameter",
+			"datatype": "string",
+			"isEnabled": "AppType == sys",
+			"defaultValue": ""
+		},
+		"SecurityKeyGuid": {
+			"type": "generated",
+			"generator": "guid",
+			"parameters": {
+			  "defaultFormat":"N"
+			}
+		},
+		"SecurityKeyReplacer": {
+			"type": "generated",
+			"generator": "coalesce",
+			"parameters": {
+				"sourceVariableName": "SecurityKey",
+				"fallbackVariableName": "SecurityKeyGuid"
+			},
+			"replaces": "f013dd97e0e711ee8e1f8cec4b9877db022c2d2ce0e811ee8e1f8cec4b9877db"
+		},
+		"DbType": {
+			"type": "parameter",
+			"datatype": "choice",
+			"choices": [
+				{
+					"choice": "MySql",
+					"description": "MySql"
+				},
+				{
+					"choice": "PostgreSQL",
+					"description": "PostgreSQL"
+				},
+				{
+					"choice": "SqlServer",
+					"description": "SqlServer"
+				},
+				{
+					"choice": "Oracle",
+					"description": "Oracle"
+				},
+				{
+					"choice": "Sqlite",
+					"description": "Sqlite"
+				},
+				{
+					"choice": "Firebird",
+					"description": "Firebird"
+				},
+				{
+					"choice": "MsAccess",
+					"description": "MsAccess"
+				},
+				{
+					"choice": "Dameng",
+					"description": "达梦"
+				},
+				{
+					"choice": "ShenTong",
+					"description": "神通"
+				},
+				{
+					"choice": "KingbaseES",
+					"description": "人大金仓"
+				},
+				{
+					"choice": "Gbase",
+					"description": "南大通用"
+				},
+				{
+					"choice": "ClickHouse",
+					"description": "ClickHouse"
+				},
+				{
+					"choice": "QuestDb",
+					"description": "QuestDb"
+				},
+				{
+					"choice": "Xugu",
+					"description": "虚谷"
+				}
+			],
+			"defaultValue": "Sqlite",
+			"description": "The database for the project"
+		},
+		"NoApiUI": {
+			"type": "parameter",
+			"datatype": "bool",
+			"defaultValue": "false",
+			"description": "Disable api document support"
+		},
+		"NoTaskScheduler": {
+			"type": "parameter",
+			"datatype": "bool",
+			"defaultValue": "false",
+			"description": "Disable task scheduler support"
+		},
+		"NoCap": {
+			"type": "parameter",
+			"datatype": "bool",
+			"defaultValue": "false",
+			"description": "Cap for building distributed transaction and eventbus"
+		},
+		"NoTests": {
+			"type": "parameter",
+			"datatype": "bool",
+			"defaultValue": "false",
+			"description": "No testing project library"
+		},
+		"NoSample": {
+			"type": "parameter",
+			"datatype": "bool",
+			"defaultValue": "false",
+			"description": "No module examples"
+		},
+		"MergeDb": {
+			"type": "parameter",
+			"datatype": "bool",
+			"defaultValue": "false",
+			"description": "Merge admindb to maindb support"
+		}
+	},
+	"sources": [
+		{
+			"modifiers": [
+				{
+					"condition": "(NoTaskScheduler)",
+					"exclude": [
+						"MyApp.Api/Core/Handlers/AppTaskHandler.cs",
+						"MyApp.Api/Core/Consts/TaskNames.cs"
+					]
+				},
+				{
+					"condition": "(!IsSys)",
+					"exclude": [
+						"MyApp.Host/InitData/App/base_*.json",
+						"MyApp.Host/ip2region.xdb",
+						"MyApp.Host/wwwroot/captcha/**"
+					]
+				},
+				{
+					"condition": "(NoTests)",
+					"exclude": [
+						"MyApp.Tests/**"
+					]
+				},
+				{
+					"condition": "(NoSample)",
+					"exclude": [
+						"MyApp.Api.Contracts/Services/Module/**",
+						"MyApp.Api.Contracts/Domain/Module/**",
+						"MyApp.Api/Repositories/Module/**",
+						"MyApp.Api/Repositories/CustomGenerateData.cs",
+						"MyApp.Api/Repositories/CustomSyncData.cs",
+						"MyApp.Api/Services/Module/**",
+						"MyApp.Host/InitData/App/__app_code_*.json"
+					]
+				}
+			]
+		}
+	]
+}
