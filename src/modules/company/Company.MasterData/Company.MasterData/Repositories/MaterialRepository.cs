@@ -1,4 +1,4 @@
-using Company.MasterData.Contracts.Entities;
+using Company.MasterData.Entities;
 using ZhonTai.Admin.Core.Db.Transaction;
 
 namespace Company.MasterData.Repositories;

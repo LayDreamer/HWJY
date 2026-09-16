@@ -23,6 +23,9 @@ public class ResultOutput<T> : IResultOutput<T>
     /// </summary>
     public string Msg { get; set; }
 
+    /// <summary>Request trace identifier, populated for P0 error responses.</summary>
+    public string TraceId { get; set; }
+
     /// <summary>
     /// 数据
     /// </summary>

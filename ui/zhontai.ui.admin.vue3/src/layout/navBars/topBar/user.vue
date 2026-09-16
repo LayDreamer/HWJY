@@ -32,13 +32,6 @@
     <div class="layout-navbars-breadcrumb-user-icon" @click="onLayoutSetingClick">
       <i class="icon-skin iconfont" :title="$t('布局配置')"></i>
     </div>
-    <div class="layout-navbars-breadcrumb-user-icon" @click="onMsgClick">
-      <el-badge :is-dot="state.unread">
-        <el-icon :title="$t('消息')">
-          <ele-Bell />
-        </el-icon>
-      </el-badge>
-    </div>
     <div class="layout-navbars-breadcrumb-user-icon mr10" @click="onScreenfullClick">
       <i
         class="iconfont"
@@ -58,13 +51,11 @@
         <el-dropdown-menu>
           <el-dropdown-item command="/platform/workbench">{{ $t('工作台') }}</el-dropdown-item>
           <el-dropdown-item command="/personal">{{ $t('个人中心') }}</el-dropdown-item>
-          <el-dropdown-item command="/site-msg">{{ $t('站内信') }}</el-dropdown-item>
           <el-dropdown-item divided command="logOut">{{ $t('退出登录') }}</el-dropdown-item>
         </el-dropdown-menu>
       </template>
     </el-dropdown>
     <Search ref="searchRef" />
-    <Msg ref="msgRef" />
   </div>
 </template>
 
@@ -76,11 +67,9 @@ import { useThemeConfig } from '/@/stores/themeConfig'
 import other from '/@/utils/other'
 import mittBus from '/@/utils/mitt'
 import { Local } from '/@/utils/storage'
-import { SiteMsgApi } from '/@/api/admin/SiteMsg'
 import { WebSocketClient } from '/@/utils/ws'
 
 // 引入组件
-const Msg = defineAsyncComponent(() => import('/@/layout/navBars/topBar/msg.vue'))
 const Search = defineAsyncComponent(() => import('/@/layout/navBars/topBar/search.vue'))
 
 // 定义变量内容
@@ -91,14 +80,12 @@ const storesThemeConfig = useThemeConfig()
 const { userInfos } = storeToRefs(storesUseUserInfo)
 const { themeConfig } = storeToRefs(storesThemeConfig)
 const searchRef = useTemplateRef('searchRef')
-const msgRef = useTemplateRef('msgRef')
 const wsClient = ref<WebSocketClient | null>(null)
 
 const state = <any>reactive({
   isScreenfull: false,
   disabledI18n: 'zh-cn',
   disabledSize: 'large',
-  unread: false,
 })
 
 // 头像地址
@@ -126,10 +113,6 @@ const onScreenfullClick = () => {
     if (screenfull.isFullscreen) state.isScreenfull = true
     else state.isScreenfull = false
   })
-}
-// 消息通知点击时
-const onMsgClick = () => {
-  msgRef.value!.openDrawer()
 }
 // 布局配置 icon 点击时
 const onLayoutSetingClick = () => {
@@ -196,13 +179,6 @@ const onLanguageChange = (lang: string) => {
 const initI18nOrSize = (value: string, attr: string) => {
   state[attr] = Local.get('themeConfig')[value]
 }
-//检查是否有未读消息
-const checkUnreadMsg = async () => {
-  const res = await new SiteMsgApi().isUnread().catch(() => {})
-  if (res?.success) {
-    state.unread = res.data
-  }
-}
 const initWebSocket = () => {
   wsClient.value = new WebSocketClient({
     onMessage: (event: MessageEvent) => {
@@ -224,12 +200,6 @@ onMounted(() => {
     initI18nOrSize('globalComponentSize', 'disabledSize')
     initI18nOrSize('globalI18n', 'disabledI18n')
   }
-  checkUnreadMsg()
-  mittBus.off('checkUnreadMsg')
-  mittBus.on('checkUnreadMsg', () => {
-    checkUnreadMsg()
-  })
-
   mittBus.off('forceOffline')
   mittBus.on('forceOffline', () => {
     storesUseUserInfo.clear()

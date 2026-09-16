@@ -6,6 +6,8 @@ using System.Text.Encodings.Web;
 using ZhonTai.Common.Extensions;
 using ZhonTai.Common.Helpers;
 using StatusCodes = ZhonTai.Admin.Core.Enums.StatusCodes;
+using ZhonTai.Admin.Core.Exceptions;
+using ZhonTai.Admin.Core.Middlewares;
 
 namespace ZhonTai.Admin.Core.Handlers;
 
@@ -43,9 +45,10 @@ public class ResponseAuthenticationHandler : AuthenticationHandler<Authenticatio
         await Response.WriteAsync(JsonHelper.Serialize(
             new ResponseStatusData
             {
-                Code = StatusCodes.Status401Unauthorized,
+                Code = P0ErrorCodes.Unauthorized,
                 Msg = StatusCodes.Status401Unauthorized.ToDescription(),
-                Success = false
+                Success = false,
+                TraceId = P0RequestContextMiddleware.GetTraceId(Context)
             }
         ));
     }
@@ -57,9 +60,10 @@ public class ResponseAuthenticationHandler : AuthenticationHandler<Authenticatio
         await Response.WriteAsync(JsonHelper.Serialize(
             new ResponseStatusData
             {
-                Code = StatusCodes.Status403Forbidden,
+                Code = P0ErrorCodes.Forbidden,
                 Msg = StatusCodes.Status403Forbidden.ToDescription(),
-                Success = false
+                Success = false,
+                TraceId = P0RequestContextMiddleware.GetTraceId(Context)
             }
         ));
     }
@@ -67,8 +71,9 @@ public class ResponseAuthenticationHandler : AuthenticationHandler<Authenticatio
 
 public class ResponseStatusData
 {
-    public StatusCodes Code { get; set; } = StatusCodes.Status1Ok;
+    public string Code { get; set; } = "P0.Ok";
     public string Msg { get; set; }
     public bool Success { get; set; }
+    public string TraceId { get; set; }
 
 }

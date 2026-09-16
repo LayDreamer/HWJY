@@ -24,6 +24,14 @@ using System.Text.Encodings.Web;
 
 var workerMode = args.Any(arg => string.Equals(arg, "--worker", StringComparison.OrdinalIgnoreCase));
 var hostArgs = args.Where(arg => !string.Equals(arg, "--worker", StringComparison.OrdinalIgnoreCase)).ToArray();
+const string p0AcceptanceEnvironment = "P0DataPermissionAcceptance";
+
+static bool IsP0AcceptanceFixtureEnabled(HostAppContext context) =>
+    context.Environment.IsEnvironment(p0AcceptanceEnvironment)
+    && string.Equals(
+        Environment.GetEnvironmentVariable("ADMINCORE_ENABLE_P0_ACCEPTANCE_FIXTURES"),
+        "true",
+        StringComparison.OrdinalIgnoreCase);
 
 // 宿主应用实例
 new HostApp(new HostAppOptions
@@ -149,6 +157,16 @@ new HostApp(new HostAppOptions
     {
         builder.RegisterGeneric(typeof(AdminRepositoryBase<>)).InstancePerLifetimeScope().PropertiesAutowired();
         builder.RegisterGeneric(typeof(LogRepositoryBase<>)).InstancePerLifetimeScope().PropertiesAutowired();
+
+        // 测试程序集不被生产 Host 引用或默认扫描；仅专用验收环境显式注册技术 API 服务。
+        if (IsP0AcceptanceFixtureEnabled(context))
+        {
+            builder.RegisterAssemblyTypes(Assembly.Load("ZhonTai.Admin.Tests"))
+                .Where(type => type.Name == "P0DataPermissionFixtureService")
+                .AsSelf()
+                .InstancePerLifetimeScope()
+                .PropertiesAutowired();
+        }
     },
     // Worker 复用同一宿主装配，但只绑定本机随机端口，避免对外暴露第二套 API。
     ConfigureWebApplicationBuilder = builder =>
@@ -158,8 +176,22 @@ new HostApp(new HostAppOptions
             builder.WebHost.UseUrls("http://127.0.0.1:0");
         }
     },
-    //配置Mvc
-    ConfigureMvcBuilder = (builder, context) => { },
+    //配置Mvc。技术验收 API 不是生产 Host 的编译时引用，须在受控环境显式作为 ApplicationPart 注册。
+    ConfigureMvcBuilder = (builder, context) =>
+    {
+        if (IsP0AcceptanceFixtureEnabled(context))
+        {
+            builder.AddApplicationPart(Assembly.Load("ZhonTai.Admin.Tests"));
+        }
+    },
+    ConfigureDynamicApiWithContext = (options, context) =>
+    {
+        // 测试程序集没有被生产 Host 引用。只有专用验收环境和显式开关同时开启时才反射登记。
+        if (IsP0AcceptanceFixtureEnabled(context))
+        {
+            options.AddAssemblyOptions(Assembly.Load("ZhonTai.Admin.Tests"));
+        }
+    },
     //配置后置中间件
     ConfigurePostMiddleware = context =>
     {

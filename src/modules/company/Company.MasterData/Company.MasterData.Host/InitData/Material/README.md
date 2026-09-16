@@ -1,6 +1,8 @@
-# Material 权限与菜单初始化映射
+# Legacy Material 冒烟夹具映射
 
-独立 MasterData Host 的权限主数据由后续与 Admin 权限库的部署集成阶段导入。本文件固定 Material 模块的权限契约，避免在本阶段修改 `ZhonTai.Admin` 的 `InitData` 或权限逻辑。
+> 已隔离：以下内容仅保留历史冒烟验证参考，禁止导入正式 Host、菜单、权限主数据或任何真实业务库。
+
+独立 MasterData Host 只有显式携带 `--smoke-fixture` 时才可用于本样例的技术复核；不代表部署集成或业务权限契约。
 
 | 类型 | 名称/编码 | 对应资源 |
 |---|---|---|

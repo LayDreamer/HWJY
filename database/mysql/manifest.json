@@ -1,0 +1,24 @@
+{
+  "migrations": [
+    {
+      "version": "20260916.001",
+      "name": "P0 migration bootstrap",
+      "provider": "MySql",
+      "direction": "Forward",
+      "path": "bootstrap/V20260916.001_bootstrap.sql",
+      "checksum": "b722b1238bff5b15536d20b52c13511a7b781a6a67ca4bed4c9e10102eb2d1d0",
+      "dependsOn": []
+    },
+    {
+      "version": "20260916.002",
+      "name": "Admin.Core P0 platform baseline",
+      "provider": "MySql",
+      "direction": "Forward",
+      "path": "baseline/V20260916.002_platform_baseline.sql",
+      "checksum": "b934264100fa02dcc56931e20d62dc3f729812729c61d37e3eded1757ba19369",
+      "rollbackPath": "rollback/V20260916.002_platform_baseline_rollback.sql",
+      "rollbackChecksum": "a39de9b3080b1a88b25c044541fc42798292c9fb4cf7c7721d24f6c739c542c1",
+      "dependsOn": [ "20260916.001" ]
+    }
+  ]
+}

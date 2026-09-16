@@ -13,7 +13,7 @@
     //是否启用枚举列表接口
     "EnableEnumListApi": false,
     //租户
-    "tenant": true,
+    "tenant": false,
     //分布式事务唯一标识admin，为空则不生成分布式事务表
     "distributeKey": "",
     //验证

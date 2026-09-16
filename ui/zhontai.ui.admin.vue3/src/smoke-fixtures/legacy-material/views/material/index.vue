@@ -44,8 +44,8 @@
   </MyLayout>
 </template>
 
-<script setup lang="ts" name="company/master-data/material">
-import { MaterialApi, MaterialDto, MaterialInput, MaterialQueryInput } from '/@/api/master-data/material'
+<script setup lang="ts" name="smoke-fixtures/legacy-material">
+import { MaterialApi, MaterialDto, MaterialInput, MaterialQueryInput } from '../../api/material'
 
 const api = new MaterialApi()
 const formRef = ref()

@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.Extensions.Logging;
 using System.Text;
 using ZhonTai.Admin.Core.Dto;
+using ZhonTai.Admin.Core.Exceptions;
+using ZhonTai.Admin.Core.Middlewares;
 
 namespace ZhonTai.Admin.Core.Filters;
 
@@ -24,18 +26,21 @@ public class ValidateInputFilter : IAsyncActionFilter
             try
             {
                 var logger = (ILogger<ValidateInputFilter>)context.HttpContext.RequestServices.GetService(typeof(ILogger<ValidateInputFilter>));
-                var errors = context.ModelState
+                var errors = string.Join("|", context.ModelState
                 .Where(m => m.Value.ValidationState == ModelValidationState.Invalid)
                 .Select(m =>
                 {
                     var sb = new StringBuilder();
                     sb.AppendFormat("{0}：", m.Key);
-                    sb.Append(m.Value.Errors.Select(n => n.ErrorMessage).Aggregate((x, y) => x + ";" + y));
+                    sb.Append(string.Join(";", m.Value.Errors.Select(n => n.ErrorMessage)));
                     return sb.ToString();
-                })
-                .Aggregate((x, y) => x + "|" + y);
+                }));
                 logger.LogError(errors);
-                context.Result = new JsonResult(ResultOutput.NotOk(errors));
+                context.Result = new JsonResult(new ResultOutput<string>
+                {
+                    Code = P0ErrorCodes.Validation,
+                    TraceId = P0RequestContextMiddleware.GetTraceId(context.HttpContext)
+                }.NotOk(errors));
             }
             catch
             {

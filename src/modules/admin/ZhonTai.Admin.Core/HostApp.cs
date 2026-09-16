@@ -48,6 +48,7 @@ using ZhonTai.Admin.Core.Consts;
 using ZhonTai.Admin.Core.Conventions;
 using ZhonTai.Admin.Core.Db;
 using ZhonTai.Admin.Core.Dto;
+using ZhonTai.Admin.Core.Exceptions;
 using ZhonTai.Admin.Core.Extensions;
 using ZhonTai.Admin.Core.Filters;
 using ZhonTai.Admin.Core.GrpcServices;
@@ -350,6 +351,7 @@ public class HostApp
         //添加数据库
         if (!_hostAppOptions.CustomInitDb)
         {
+            P0SchemaGuard.VerifyBeforeDatabaseInitialization(configuration);
             services.AddDb(env, _hostAppOptions);
         }
 
@@ -782,6 +784,7 @@ public class HostApp
             options.FormatResultType = typeof(ResultOutput<>);
             options.AddAssemblyOptions(GetType().Assembly);
             _hostAppOptions?.ConfigureDynamicApi?.Invoke(options);
+            _hostAppOptions?.ConfigureDynamicApiWithContext?.Invoke(options, hostAppContext);
         });
 
         //oss文件上传
@@ -843,8 +846,25 @@ public class HostApp
 
         _hostAppOptions?.ConfigurePreMiddleware?.Invoke(hostAppMiddlewareContext);
 
+        // Request context is outermost so every exception and completion log has the same TraceId.
+        app.UseMiddleware<P0RequestContextMiddleware>();
+
         //异常处理
         app.UseMiddleware<ExceptionMiddleware>();
+
+        // Keep framework 404 responses in the same P0 envelope as application errors.
+        app.UseStatusCodePages(async statusCodeContext =>
+        {
+            if (statusCodeContext.HttpContext.Response.StatusCode == StatusCodes.Status404NotFound)
+            {
+                statusCodeContext.HttpContext.Response.ContentType = "application/json";
+                await statusCodeContext.HttpContext.Response.WriteAsJsonAsync(new ResultOutput<string>
+                {
+                    Code = P0ErrorCodes.NotFound,
+                    TraceId = P0RequestContextMiddleware.GetTraceId(statusCodeContext.HttpContext)
+                }.NotOk("The requested resource was not found."));
+            }
+        });
 
         IdentityModelEventSource.ShowPII = true;
 

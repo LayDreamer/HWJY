@@ -91,6 +91,12 @@ public class HostAppOptions
     public Action<DynamicApiOptions> ConfigureDynamicApi { get; set; }
 
     /// <summary>
+    /// 配置动态 Api（包含宿主环境上下文）。
+    /// 用于仅在明确环境启用的可选装配，避免由进程环境变量推断宿主环境。
+    /// </summary>
+    public Action<DynamicApiOptions, HostAppContext> ConfigureDynamicApiWithContext { get; set; }
+
+    /// <summary>
     /// 配置SwaggerUI
     /// </summary>
     public Action<SwaggerUIOptions> ConfigureSwaggerUI { get; set; }

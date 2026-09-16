@@ -1,5 +1,15 @@
 import Cookies from 'js-cookie'
 
+function parseStorageValue(json: string | null) {
+  if (!json || json === 'undefined') return null
+
+  try {
+    return JSON.parse(json)
+  } catch {
+    return null
+  }
+}
+
 /**
  * window.localStorage 浏览器永久缓存
  * @method set 设置永久缓存
@@ -18,8 +28,7 @@ export const Local = {
   },
   // 获取永久缓存
   get(key: string) {
-    let json = <string>window.localStorage.getItem(Local.getKey(key))
-    return JSON.parse(json)
+    return parseStorageValue(window.localStorage.getItem(Local.getKey(key)))
   },
   // 移除永久缓存
   remove(key: string) {
@@ -47,8 +56,7 @@ export const Session = {
   // 获取临时缓存
   get(key: string) {
     if (key === 'token') return Cookies.get(key)
-    let json = <string>window.sessionStorage.getItem(Local.getKey(key))
-    return JSON.parse(json)
+    return parseStorageValue(window.sessionStorage.getItem(Local.getKey(key)))
   },
   // 移除临时缓存
   remove(key: string) {

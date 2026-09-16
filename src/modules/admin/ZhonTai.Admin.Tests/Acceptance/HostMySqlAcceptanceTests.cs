@@ -12,6 +12,16 @@ using FreeSql.DataAnnotations;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Yitter.IdGenerator;
+using ZhonTai.Admin.Domain;
+using ZhonTai.Admin.Domain.Org;
+using ZhonTai.Admin.Domain.Permission;
+using ZhonTai.Admin.Domain.Role;
+using ZhonTai.Admin.Domain.RolePermission;
+using ZhonTai.Admin.Domain.User;
+using ZhonTai.Admin.Domain.UserOrg;
+using ZhonTai.Admin.Domain.UserRole;
+using ZhonTai.Common.Helpers;
 using Xunit;
 using ZhonTai.Admin.Core.Consts;
 using ZhonTai.Admin.Core.Db.Transaction;
@@ -29,7 +39,7 @@ public sealed class HostMySqlAcceptanceTests
     private const string EnvName = "HostMySqlAcceptance";
     private const string MainConnectionVariable = "ADMINCORE_HOST_MYSQL";
     private const string LogConnectionVariable = "ADMINCORE_HOST_MYSQL_LOG";
-    private const string BusinessTable = "acc_host_material";
+    private const string BusinessTable = "acc_host_business_record";
 
     [HostMySqlAcceptanceFact]
     public async Task FullHostRunsOnMySql8AndBusinessDataSurvivesRestart()
@@ -38,7 +48,7 @@ public sealed class HostMySqlAcceptanceTests
         var logConnection = Environment.GetEnvironmentVariable(LogConnectionVariable)!;
         WriteHostConfigs(mainConnection, logConnection);
 
-        var materialCode = "ACC-MAT-" + Guid.NewGuid().ToString("N")[..12];
+        var recordCode = "ACC-REC-" + Guid.NewGuid().ToString("N")[..12];
         var apiLabel = "验收接口-" + Guid.NewGuid().ToString("N")[..12];
         var apiPath = "/api/acceptance/" + Guid.NewGuid().ToString("N")[..12];
 
@@ -115,31 +125,31 @@ public sealed class HostMySqlAcceptanceTests
             {
                 using (var unitOfWork = manager.Begin(DbKeys.AdminDb))
                 {
-                    unitOfWork.Orm.Insert(new AccHostMaterial
+                    unitOfWork.Orm.Insert(new AccHostBusinessRecord
                     {
-                        MaterialCode = materialCode + "-ROLLBACK",
-                        MaterialName = "回滚用例",
+                        RecordCode = recordCode + "-ROLLBACK",
+                        RecordName = "回滚用例",
                         SourceSystem = "ETS",
                         SourceId = "SRC-ROLLBACK"
                     }).ExecuteAffrows();
                     unitOfWork.Rollback();
                 }
 
-                Assert.Equal(0, CountBusinessRows(mainDb, materialCode + "-ROLLBACK"));
+                Assert.Equal(0, CountBusinessRows(mainDb, recordCode + "-ROLLBACK"));
 
                 using (var unitOfWork = manager.Begin(DbKeys.AdminDb))
                 {
-                    unitOfWork.Orm.Insert(new AccHostMaterial
+                    unitOfWork.Orm.Insert(new AccHostBusinessRecord
                     {
-                        MaterialCode = materialCode,
-                        MaterialName = "提交用例",
+                        RecordCode = recordCode,
+                        RecordName = "提交用例",
                         SourceSystem = "ETS",
                         SourceId = "SRC-001"
                     }).ExecuteAffrows();
                     unitOfWork.Commit();
                 }
 
-                Assert.Equal(1, CountBusinessRows(mainDb, materialCode));
+                Assert.Equal(1, CountBusinessRows(mainDb, recordCode));
             }
         }
 
@@ -150,7 +160,7 @@ public sealed class HostMySqlAcceptanceTests
             var mainDb = cloud.Use(DbKeys.AdminDb);
 
             // 10. 重启后结构与数据仍在，且结构同步可重复执行
-            Assert.Equal(1, CountBusinessRows(mainDb, materialCode));
+            Assert.Equal(1, CountBusinessRows(mainDb, recordCode));
             Assert.StartsWith("8.", mainDb.Ado.QuerySingle<string>("select version()"));
             Assert.Equal(1, mainDb.Ado.QuerySingle<int>(
                 "select count(*) from base_api where path = @path", new { path = apiPath }));
@@ -161,9 +171,159 @@ public sealed class HostMySqlAcceptanceTests
         }
     }
 
-    private static int CountBusinessRows(IFreeSql db, string materialCode)
+    /// <summary>
+    /// P0-1：以非平台管理员的真实 JWT 验证 Material API 的权限点、RoleOrg 数据范围和管理员可见范围。
+    /// 测试数据只写入由 ADMINCORE_HOST_MYSQL 明确指定的验收库。
+    /// </summary>
+    [Fact(Skip = "Legacy smoke fixture: Material is not an active business domain.")]
+    public async Task MaterialApiUsesJwtRbacAndRoleOrgDataIsolationOnMySql8()
+    {
+        var mainConnection = Environment.GetEnvironmentVariable(MainConnectionVariable)!;
+        var logConnection = Environment.GetEnvironmentVariable(LogConnectionVariable)!;
+        WriteHostConfigs(mainConnection, logConnection);
+
+        using var app = CreateHost();
+        var cloud = app.Services.GetRequiredService<FreeSqlCloud>();
+        var mainDb = cloud.Use(DbKeys.AdminDb);
+        var suffix = Guid.NewGuid().ToString("N")[..12];
+
+        // Host 启动时必须已经把模块 API、权限点与 PermissionApi 关系同步到主库。
+        foreach (var permissionCode in new[] { "Material.Query", "Material.Create", "Material.Update", "Material.Delete" })
+        {
+            Assert.Equal(1, mainDb.Ado.QuerySingle<int>(
+                "select count(*) from base_permission where code = @code", new { code = permissionCode }));
+        }
+        Assert.Equal(6, mainDb.Ado.QuerySingle<int>(
+            "select count(*) from base_api where path like '/api/master-data/material/%'"));
+        Assert.Equal(6, mainDb.Ado.QuerySingle<int>(
+            "select count(*) from base_permission_api pa inner join base_api a on pa.ApiId = a.Id where a.path like '/api/master-data/material/%'"));
+        var mainSchema = mainDb.Ado.QuerySingle<string>("select database()");
+        Assert.Equal(1, mainDb.Ado.QuerySingle<int>(
+            "select count(distinct index_name) from information_schema.statistics where table_schema = @schema and table_name = 'md_material' and index_name = 'uk_md_material_source_system_source_id' and non_unique = 0",
+            new { schema = mainSchema }));
+
+        var access = await SeedMaterialAcceptanceAccessAsync(mainDb, suffix);
+        var materialCode = "ACC-P0-" + suffix;
+
+        using var writer = app.CreateClient();
+        await LoginAsync(writer, access.WriterUserName, access.Password);
+        var addResponse = await PostJsonAsync(writer, "/api/master-data/material/add", new
+        {
+            MaterialCode = materialCode,
+            MaterialName = "P0-1 组织隔离验收物料",
+            MaterialType = "RAW",
+            Status = "Enabled",
+            IsPurchase = true,
+            IsProduce = false,
+            LeadTime = 0,
+            SafetyStock = 0
+        });
+        Assert.True(IsSuccess(addResponse), $"物料新增失败：{addResponse}");
+
+        var material = mainDb.Ado.QuerySingle<MaterialAcceptanceRecord>(
+            "select Id, OwnerId, OwnerOrgId, SourceSystem, SourceId, MaterialName, IsDeleted from md_material where MaterialCode = @materialCode",
+            new { materialCode });
+        Assert.NotNull(material);
+        Assert.Equal(access.WriterOrgId, material.OwnerOrgId);
+        Assert.Equal(access.WriterUserId, material.OwnerId);
+        Assert.Equal("INTERNAL", material.SourceSystem);
+        Assert.False(string.IsNullOrWhiteSpace(material.SourceId));
+
+        // 同一角色授权的第二个用户可通过 RoleOrg 看到组织 A 的数据。
+        using var sameOrgReader = app.CreateClient();
+        await LoginAsync(sameOrgReader, access.SameOrgReaderUserName, access.Password);
+        var sameOrgPage = await PostJsonAsync(sameOrgReader, "/api/master-data/material/get-page", new
+        {
+            CurrentPage = 1,
+            PageSize = 20,
+            Filter = new { MaterialCode = materialCode }
+        });
+        Assert.True(IsSuccess(sameOrgPage), $"同组织查询失败：{sameOrgPage}");
+        Assert.Contains(materialCode, sameOrgPage, StringComparison.Ordinal);
+
+        // 组织 B 只有查询权限：JWT 可以访问查询 API，但不能看见组织 A 的物料，也不能新增。
+        using var otherOrgReader = app.CreateClient();
+        await LoginAsync(otherOrgReader, access.OtherOrgReaderUserName, access.Password);
+        var otherOrgPage = await PostJsonAsync(otherOrgReader, "/api/master-data/material/get-page", new
+        {
+            CurrentPage = 1,
+            PageSize = 20,
+            Filter = new { MaterialCode = materialCode }
+        });
+        Assert.True(IsSuccess(otherOrgPage), $"跨组织查询请求失败：{otherOrgPage}");
+        Assert.DoesNotContain(materialCode, otherOrgPage, StringComparison.Ordinal);
+
+        using (var crossOrgGet = await otherOrgReader.GetAsync($"/api/master-data/material/get?id={material.Id}"))
+        {
+            var crossOrgGetBody = await crossOrgGet.Content.ReadAsStringAsync();
+            Assert.True(crossOrgGet.IsSuccessStatusCode && IsSuccess(crossOrgGetBody), $"跨组织详情请求失败：{crossOrgGetBody}");
+            Assert.DoesNotContain(materialCode, crossOrgGetBody, StringComparison.Ordinal);
+        }
+
+        using (var deniedContent = new StringContent(JsonSerializer.Serialize(new
+        {
+            MaterialCode = materialCode + "-DENIED",
+            MaterialName = "不应写入",
+            MaterialType = "RAW",
+            Status = "Enabled"
+        }), Encoding.UTF8, "application/json"))
+        using (var deniedResponse = await otherOrgReader.PostAsync("/api/master-data/material/add", deniedContent))
+        {
+            var deniedBody = await deniedResponse.Content.ReadAsStringAsync();
+            Assert.False(deniedResponse.IsSuccessStatusCode && IsSuccess(deniedBody),
+                $"缺少 Material.Create 权限的用户仍可新增：{deniedBody}");
+        }
+
+        // 组织 B 的操作角色拥有更新/删除权限，但 RoleOrg 仍只覆盖组织 B；因此不能越权改删组织 A 数据。
+        using var otherOrgOperator = app.CreateClient();
+        await LoginAsync(otherOrgOperator, access.OtherOrgOperatorUserName, access.Password);
+        using (var crossOrgUpdateContent = new StringContent(JsonSerializer.Serialize(new
+        {
+            Id = material.Id,
+            MaterialCode = materialCode,
+            MaterialName = "不应被跨组织修改",
+            MaterialType = "RAW",
+            Status = "Enabled",
+            IsPurchase = true,
+            IsProduce = false,
+            LeadTime = 0,
+            SafetyStock = 0
+        }), Encoding.UTF8, "application/json"))
+        using (var crossOrgUpdate = await otherOrgOperator.PutAsync("/api/master-data/material/update", crossOrgUpdateContent))
+        {
+            var crossOrgUpdateBody = await crossOrgUpdate.Content.ReadAsStringAsync();
+            Assert.False(crossOrgUpdate.IsSuccessStatusCode && IsSuccess(crossOrgUpdateBody),
+                $"组织 B 操作角色越权更新了组织 A 物料：{crossOrgUpdateBody}");
+        }
+        using (var crossOrgDelete = await otherOrgOperator.DeleteAsync($"/api/master-data/material/delete?id={material.Id}"))
+        {
+            var crossOrgDeleteBody = await crossOrgDelete.Content.ReadAsStringAsync();
+            Assert.True(crossOrgDelete.IsSuccessStatusCode && IsSuccess(crossOrgDeleteBody),
+                $"跨组织删除请求未得到受控业务响应：{crossOrgDeleteBody}");
+        }
+        var unchangedMaterial = mainDb.Ado.QuerySingle<MaterialAcceptanceRecord>(
+            "select Id, OwnerId, OwnerOrgId, SourceSystem, SourceId, MaterialName, IsDeleted from md_material where Id = @id",
+            new { id = material.Id });
+        Assert.NotNull(unchangedMaterial);
+        Assert.Equal("P0-1 组织隔离验收物料", unchangedMaterial.MaterialName);
+        Assert.False(unchangedMaterial.IsDeleted);
+
+        // 平台管理员走全量数据范围，能够读到组织 A 的物料。
+        using var administrator = app.CreateClient();
+        await LoginAsync(administrator, access.PlatformAdminUserName, access.Password);
+        var adminPage = await PostJsonAsync(administrator, "/api/master-data/material/get-page", new
+        {
+            CurrentPage = 1,
+            PageSize = 20,
+            Filter = new { MaterialCode = materialCode }
+        });
+        Assert.True(IsSuccess(adminPage), $"管理员查询失败：{adminPage}");
+        Assert.Contains(materialCode, adminPage, StringComparison.Ordinal);
+    }
+
+    private static int CountBusinessRows(IFreeSql db, string recordCode)
         => db.Ado.QuerySingle<int>(
-            $"select count(*) from `{BusinessTable}` where MaterialCode = @code", new { code = materialCode });
+            $"select count(*) from `{BusinessTable}` where RecordCode = @code", new { code = recordCode });
 
     private static IFreeSql BuildMySql(string connectionString) => new FreeSqlBuilder()
         .UseConnectionString(DataType.MySql, connectionString)
@@ -183,7 +343,9 @@ public sealed class HostMySqlAcceptanceTests
         }
     }
 
-    private static async Task LoginAsync(HttpClient client)
+    private static Task LoginAsync(HttpClient client) => LoginAsync(client, "admin", "123asd");
+
+    private static async Task LoginAsync(HttpClient client, string userName, string password)
     {
         // TestServer 无真实 socket，Connection.RemoteIpAddress 为 null；
         // 生产拓扑中请求来自 SLB / Nginx，故按同样方式提供客户端地址头。
@@ -192,8 +354,8 @@ public sealed class HostMySqlAcceptanceTests
 
         var response = await PostJsonAsync(client, "/api/admin/auth/login", new
         {
-            UserName = "admin",
-            Password = "123asd"
+            UserName = userName,
+            Password = password
         });
 
         var token = FindStringProperty(response, "accessToken");
@@ -358,21 +520,177 @@ public sealed class HostMySqlAcceptanceTests
             Path.Combine(directory, $"appconfig.{EnvName}.json"),
             JsonSerializer.Serialize(new Dictionary<string, object> { ["AppConfig"] = appConfig }, options));
     }
+
+    private static async Task<MaterialAcceptanceAccess> SeedMaterialAcceptanceAccessAsync(IFreeSql db, string suffix)
+    {
+        const string password = "P0-1-MySql-Only";
+        var writerOrg = new OrgEntity
+        {
+            Id = YitIdHelper.NextId(),
+            ParentId = 0,
+            Name = "验收组织A-" + suffix,
+            Code = "ACC-A-" + suffix,
+            Value = "ACC-A-" + suffix,
+            Enabled = true
+        };
+        var otherOrg = new OrgEntity
+        {
+            Id = YitIdHelper.NextId(),
+            ParentId = 0,
+            Name = "验收组织B-" + suffix,
+            Code = "ACC-B-" + suffix,
+            Value = "ACC-B-" + suffix,
+            Enabled = true
+        };
+        await db.Insert(writerOrg).ExecuteAffrowsAsync();
+        await db.Insert(otherOrg).ExecuteAffrowsAsync();
+
+        var writerRole = new RoleEntity
+        {
+            Id = YitIdHelper.NextId(),
+            ParentId = 0,
+            Name = "物料验收写角色-" + suffix,
+            Code = "ACC-MD-W-" + suffix,
+            Type = RoleType.Role,
+            DataScope = DataScope.Custom
+        };
+        var sameOrgReaderRole = new RoleEntity
+        {
+            Id = YitIdHelper.NextId(),
+            ParentId = 0,
+            Name = "物料验收组织A读角色-" + suffix,
+            Code = "ACC-MD-RA-" + suffix,
+            Type = RoleType.Role,
+            DataScope = DataScope.Custom
+        };
+        var otherOrgReaderRole = new RoleEntity
+        {
+            Id = YitIdHelper.NextId(),
+            ParentId = 0,
+            Name = "物料验收组织B读角色-" + suffix,
+            Code = "ACC-MD-RB-" + suffix,
+            Type = RoleType.Role,
+            DataScope = DataScope.Custom
+        };
+        var otherOrgOperatorRole = new RoleEntity
+        {
+            Id = YitIdHelper.NextId(),
+            ParentId = 0,
+            Name = "物料验收组织B操作角色-" + suffix,
+            Code = "ACC-MD-OB-" + suffix,
+            Type = RoleType.Role,
+            DataScope = DataScope.Custom
+        };
+        await db.Insert(new[] { writerRole, sameOrgReaderRole, otherOrgReaderRole, otherOrgOperatorRole }).ExecuteAffrowsAsync();
+        await db.Insert(new[]
+        {
+            new RoleOrgEntity { RoleId = writerRole.Id, OrgId = writerOrg.Id },
+            new RoleOrgEntity { RoleId = sameOrgReaderRole.Id, OrgId = writerOrg.Id },
+            new RoleOrgEntity { RoleId = otherOrgReaderRole.Id, OrgId = otherOrg.Id },
+            new RoleOrgEntity { RoleId = otherOrgOperatorRole.Id, OrgId = otherOrg.Id }
+        }).ExecuteAffrowsAsync();
+
+        var writer = CreateAcceptanceUser("acc-md-w-" + suffix, writerOrg.Id, password);
+        var sameOrgReader = CreateAcceptanceUser("acc-md-r-a-" + suffix, writerOrg.Id, password);
+        var otherOrgReader = CreateAcceptanceUser("acc-md-r-b-" + suffix, otherOrg.Id, password);
+        var otherOrgOperator = CreateAcceptanceUser("acc-md-o-b-" + suffix, otherOrg.Id, password);
+        var platformAdmin = CreateAcceptanceUser("acc-md-admin-" + suffix, writerOrg.Id, password, UserType.PlatformAdmin);
+        await db.Insert(new[] { writer, sameOrgReader, otherOrgReader, otherOrgOperator, platformAdmin }).ExecuteAffrowsAsync();
+        await db.Insert(new[]
+        {
+            new UserOrgEntity { UserId = writer.Id, OrgId = writerOrg.Id },
+            new UserOrgEntity { UserId = sameOrgReader.Id, OrgId = writerOrg.Id },
+            new UserOrgEntity { UserId = otherOrgReader.Id, OrgId = otherOrg.Id },
+            new UserOrgEntity { UserId = otherOrgOperator.Id, OrgId = otherOrg.Id },
+            new UserOrgEntity { UserId = platformAdmin.Id, OrgId = writerOrg.Id }
+        }).ExecuteAffrowsAsync();
+        await db.Insert(new[]
+        {
+            new UserRoleEntity { UserId = writer.Id, RoleId = writerRole.Id },
+            new UserRoleEntity { UserId = sameOrgReader.Id, RoleId = sameOrgReaderRole.Id },
+            new UserRoleEntity { UserId = otherOrgReader.Id, RoleId = otherOrgReaderRole.Id },
+            new UserRoleEntity { UserId = otherOrgOperator.Id, RoleId = otherOrgOperatorRole.Id }
+        }).ExecuteAffrowsAsync();
+
+        const long materialQueryPermissionId = 880000000000001;
+        const long materialCreatePermissionId = 880000000000002;
+        const long materialUpdatePermissionId = 880000000000003;
+        const long materialDeletePermissionId = 880000000000004;
+        await db.Insert(new[]
+        {
+            new RolePermissionEntity { Platform = "admin", RoleId = writerRole.Id, PermissionId = materialQueryPermissionId },
+            new RolePermissionEntity { Platform = "admin", RoleId = writerRole.Id, PermissionId = materialCreatePermissionId },
+            new RolePermissionEntity { Platform = "admin", RoleId = writerRole.Id, PermissionId = materialUpdatePermissionId },
+            new RolePermissionEntity { Platform = "admin", RoleId = writerRole.Id, PermissionId = materialDeletePermissionId },
+            new RolePermissionEntity { Platform = "admin", RoleId = sameOrgReaderRole.Id, PermissionId = materialQueryPermissionId },
+            new RolePermissionEntity { Platform = "admin", RoleId = otherOrgReaderRole.Id, PermissionId = materialQueryPermissionId },
+            new RolePermissionEntity { Platform = "admin", RoleId = otherOrgOperatorRole.Id, PermissionId = materialQueryPermissionId },
+            new RolePermissionEntity { Platform = "admin", RoleId = otherOrgOperatorRole.Id, PermissionId = materialUpdatePermissionId },
+            new RolePermissionEntity { Platform = "admin", RoleId = otherOrgOperatorRole.Id, PermissionId = materialDeletePermissionId }
+        }).ExecuteAffrowsAsync();
+
+        return new MaterialAcceptanceAccess(
+            password,
+            writer.UserName,
+            sameOrgReader.UserName,
+            otherOrgReader.UserName,
+            otherOrgOperator.UserName,
+            platformAdmin.UserName,
+            writer.Id,
+            writerOrg.Id);
+    }
+
+    private static UserEntity CreateAcceptanceUser(string userName, long orgId, string password, UserType type = UserType.DefaultUser) => new()
+    {
+        Id = YitIdHelper.NextId(),
+        UserName = userName,
+        Password = MD5Encrypt.Encrypt32(password),
+        PasswordEncryptType = PasswordEncryptType.MD5Encrypt32,
+        Name = userName,
+        NickName = userName,
+        OrgId = orgId,
+        Type = type,
+        Enabled = true
+    };
+
+    private sealed record MaterialAcceptanceAccess(
+        string Password,
+        string WriterUserName,
+        string SameOrgReaderUserName,
+        string OtherOrgReaderUserName,
+        string OtherOrgOperatorUserName,
+        string PlatformAdminUserName,
+        long WriterUserId,
+        long WriterOrgId);
+
+    /// <summary>
+    /// 验收测试的数据库观察模型；不是 MasterData 的公共业务实体或跨模块 Contract。
+    /// </summary>
+    private sealed class MaterialAcceptanceRecord
+    {
+        public long Id { get; init; }
+        public long OwnerId { get; init; }
+        public long OwnerOrgId { get; init; }
+        public string SourceSystem { get; init; } = string.Empty;
+        public string SourceId { get; init; } = string.Empty;
+        public string MaterialName { get; init; } = string.Empty;
+        public bool IsDeleted { get; init; }
+    }
 }
 
 /// <summary>
-/// 宿主级验收业务表，按 P0 §18.1 的扩展约束建模：
+/// 宿主级验收夹具表，按 P0 §18.1 的扩展约束建模：
 /// EntityData 提供组织归属与数据权限，SourceSystem / SourceId 提供来源追溯。
 /// </summary>
-[Table(Name = "acc_host_material")]
-[Index("idx_acc_host_material_code", nameof(MaterialCode), true)]
-public sealed class AccHostMaterial : EntityData
+[Table(Name = "acc_host_business_record")]
+[Index("idx_acc_host_business_record_code", nameof(RecordCode), true)]
+public sealed class AccHostBusinessRecord : EntityData
 {
     [Column(StringLength = 50)]
-    public string MaterialCode { get; set; } = string.Empty;
+    public string RecordCode { get; set; } = string.Empty;
 
     [Column(StringLength = 200)]
-    public string MaterialName { get; set; } = string.Empty;
+    public string RecordName { get; set; } = string.Empty;
 
     [Column(StringLength = 50)]
     public string SourceSystem { get; set; } = string.Empty;

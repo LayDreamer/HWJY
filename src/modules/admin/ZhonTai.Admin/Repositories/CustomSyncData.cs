@@ -17,7 +17,6 @@ using ZhonTai.Admin.Domain.UserOrg;
 using ZhonTai.Common.Extensions;
 using FreeSql;
 using Mapster;
-using ZhonTai.Admin.Domain.Region;
 using ZhonTai.Admin.Domain.PrintTemplate;
 
 namespace ZhonTai.Admin.Repositories;
@@ -284,21 +283,6 @@ public class CustomSyncData : SyncData, ISyncData
                     batchDataList.Any(b => a.Id == b.Id 
                     || (!string.IsNullOrWhiteSpace(a.Name) && a.Name == b.Name)
                     || (!string.IsNullOrWhiteSpace(a.Code) && a.Code == b.Code))
-                );
-            },
-            insertDataFunc: (batchDataList, dbDataList) =>
-            {
-                return batchDataList.Where(a => !dbDataList.Any(b => a.Id == b.Id
-                    || (!string.IsNullOrWhiteSpace(a.Name) && a.Name == b.Name)
-                    || (!string.IsNullOrWhiteSpace(a.Code) && a.Code == b.Code)));
-            });
-            await SyncEntityAsync<RegionEntity>(db, unitOfWork, dbConfig, appConfig, processChilds: true, 
-            whereFunc: (select, batchDataList) =>
-            {
-                return select.Where(a =>
-                    batchDataList.Any(b => a.Id == b.Id
-                    || (a.ParentId == b.ParentId && !string.IsNullOrWhiteSpace(a.Name) && a.Name == b.Name)
-                    || (a.ParentId == b.ParentId && !string.IsNullOrWhiteSpace(a.Code) && a.Code == b.Code))
                 );
             },
             insertDataFunc: (batchDataList, dbDataList) =>

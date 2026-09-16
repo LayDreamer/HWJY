@@ -1,7 +1,7 @@
 {
   "DbConfig": {
     "key": "masterdatadb",
-    "assemblyNames": [ "Company.MasterData.Contracts" ],
+    "assemblyNames": [ "Company.MasterData" ],
     "createDb": true,
     "syncStructure": true,
     "syncData": false,

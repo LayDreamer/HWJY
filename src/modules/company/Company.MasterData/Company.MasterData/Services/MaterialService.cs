@@ -1,7 +1,8 @@
 using Company.MasterData.Contracts.DTO;
-using Company.MasterData.Contracts.Entities;
 using Company.MasterData.Contracts.Services;
+using Company.MasterData.Contracts.Core.Consts;
 using Company.MasterData.Core.Consts;
+using Company.MasterData.Entities;
 using Company.MasterData.Repositories;
 using Microsoft.AspNetCore.Mvc;
 using ZhonTai.Admin.Core.Dto;
@@ -40,7 +41,17 @@ public class MaterialService(MaterialRepository materialRepository) : BaseServic
     {
         if (await materialRepository.Select.AnyAsync(item => item.MaterialCode == input.MaterialCode))
             throw ResultOutput.Exception("物料编码已存在");
+
+        var dataPermission = User.DataPermission;
+        if (dataPermission?.OrgId is not > 0)
+            throw ResultOutput.Exception("当前用户缺少有效的组织上下文，无法创建物料");
+
         var entity = Mapper.Map<MaterialEntity>(input);
+        entity.OwnerId = User.Id;
+        entity.OwnerOrgId = dataPermission.OrgId;
+        entity.OwnerOrgName = dataPermission.OrgName;
+        entity.SourceSystem = SourceSystems.Internal;
+        entity.SourceId = Guid.NewGuid().ToString("N");
         return (await materialRepository.InsertAsync(entity)).Id;
     }
 
