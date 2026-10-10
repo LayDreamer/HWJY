@@ -40,10 +40,20 @@ public sealed class P0T4HostIsolationTests
         var beforeStart = GetSchemaSignature(connection);
         using var host = new T4HostFactory(config.ConfigCenterPath);
         var cloud = host.Services.GetRequiredService<FreeSqlCloud>();
+
+        // 本用例的职责是"全库隔离"：Host 必须连到 T4 专用 schema，且自动建库/结构同步/Seed 全部关闭时
+        // 不得改动任何结构。种子数据由 Seed 流程负责，不在 release baseline 迁移内，因此不校验行数。
         Assert.Equal(T4Schema, cloud.Use(DbKeys.AdminDb).Ado.QuerySingle<string>("select database()"));
         Assert.Equal(T4Schema, cloud.Use(DbKeys.LogDb).Ado.QuerySingle<string>("select database()"));
-        Assert.True(cloud.Use(DbKeys.AdminDb).Ado.QuerySingle<int>("select count(*) from base_user") > 0);
         Assert.Equal(1, cloud.Use(DbKeys.AdminDb).Ado.QuerySingle<int>("select count(*) from information_schema.tables where table_schema = database() and table_name = 'base_task'"));
+        Assert.Equal(1, cloud.Use(DbKeys.AdminDb).Ado.QuerySingle<int>("select count(*) from information_schema.tables where table_schema = database() and table_name = 'base_user'"));
+        Assert.Equal(1, cloud.Use(DbKeys.LogDb).Ado.QuerySingle<int>("select count(*) from information_schema.tables where table_schema = database() and table_name = 'base_login_log'"));
+
+        // base_user 结构必须完整（列齐全），这是"结构未被破坏"的直接证据。
+        Assert.Equal(29, cloud.Use(DbKeys.AdminDb).Ado.QuerySingle<int>(
+            "select count(*) from information_schema.columns where table_schema = database() and table_name = 'base_user'"));
+
+        // 启动前后 schema 签名必须完全一致：证明 Host 没有创建或修改任何表。
         Assert.Equal(beforeStart, GetSchemaSignature(connection));
     }
 
@@ -149,13 +159,21 @@ public sealed class P0T4HostIsolationTests
 
     private sealed class T4HostFactory(string configCenterPath) : WebApplicationFactory<Program>
     {
+        private string? _originalConfigCenterPath;
+
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
+            // HostApp 在 ConfigureServices 阶段读取该值；WebApplicationFactory 的回调时序晚于该阶段，
+            // 因此必须用进程级环境变量，与 DB11 的 --worker 路径保持一致的注入方式。
+            _originalConfigCenterPath = Environment.GetEnvironmentVariable("ADMINCORE_CONFIGCENTER_PATH");
+            Environment.SetEnvironmentVariable("ADMINCORE_CONFIGCENTER_PATH", configCenterPath);
             builder.UseEnvironment("P0T4HostIsolation");
-            builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(new Dictionary<string, string>
-            {
-                ["ADMINCORE_CONFIGCENTER_PATH"] = configCenterPath
-            }));
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            base.Dispose(disposing);
+            Environment.SetEnvironmentVariable("ADMINCORE_CONFIGCENTER_PATH", _originalConfigCenterPath);
         }
     }
 

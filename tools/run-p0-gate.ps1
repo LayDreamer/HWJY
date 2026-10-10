@@ -2,7 +2,7 @@
 param()
 
 $ErrorActionPreference = 'Stop'
-$required = @('ADMINCORE_T4_MYSQL', 'ADMINCORE_HOST_MYSQL', 'ADMINCORE_HOST_MYSQL_LOG')
+$required = @('ADMINCORE_T4_MYSQL', 'ADMINCORE_HOST_MYSQL', 'ADMINCORE_HOST_MYSQL_LOG', 'ADMINCORE_ACCEPTANCE_MYSQL')
 $missing = @($required | Where-Object { [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($_)) })
 if ($missing.Count -gt 0) {
     Write-Error ('P0 Gate BLOCKED: missing required environment variables: ' + ($missing -join ', '))
