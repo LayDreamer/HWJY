@@ -413,3 +413,46 @@ FodyWeavers.xsd
 # Keep the Company APS module boundary; generic *.aps rules target VS temporary files.
 !src/modules/company/Company.APS/
 !src/modules/company/Company.APS/**
+
+# Operating system and editor metadata
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.idea/
+*.iml
+*.swp
+*.swo
+
+# JavaScript tooling caches and generated test artifacts
+.npm/
+.pnpm-store/
+.yarn/
+.parcel-cache/
+.turbo/
+.eslintcache
+*.tsbuildinfo
+playwright-report/
+test-results/
+blob-report/
+
+# Machine-specific environment and secret configuration
+.env.local
+.env.*.local
+appsettings.Local.json
+appsettings.*.Local.json
+secrets.json
+secrets.*.json
+
+# Local database runtime data. Keep migration and bootstrap scripts tracked.
+/database/backups/
+/database/mysql/data/
+/database/mysql/tmp/
+/database/mysql/logs/
+*.db-shm
+*.db-wal
+*.db-journal
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite-journal
