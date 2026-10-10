@@ -7,6 +7,7 @@ using System.Text.Json;
 using FreeSql;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using MySqlConnector;
 using Xunit;
@@ -21,13 +22,14 @@ public sealed class P0T4HostIsolationTests
 {
     private const string T4Schema = "admincore_p0_t4_acceptance";
 
-    [Fact]
-    [Trait("P0Gate", "Remaining")]
+    [P0T4MySqlFact]
+    [Trait("P0Gate", "Required")]
     public void DB10_NormalT4HostStartsWithAllWritableDatabasesIsolated()
     {
         var connection = Environment.GetEnvironmentVariable("ADMINCORE_T4_MYSQL");
         Assert.False(string.IsNullOrWhiteSpace(connection));
         Assert.Equal(T4Schema, new MySqlConnectionStringBuilder(connection).Database);
+        using var config = WriteT4Configs(connection);
         var manifestPath = FindRepositoryFile("database", "mysql", "manifest.json");
         using (var releaseDb = new FreeSqlBuilder().UseConnectionString(DataType.MySql, connection).UseAutoSyncStructure(false).Build())
         {
@@ -36,9 +38,7 @@ public sealed class P0T4HostIsolationTests
             executor.Apply(manifestPath, "p0-t4-host");
         }
         var beforeStart = GetSchemaSignature(connection);
-        WriteT4Configs(connection);
-
-        using var host = new T4HostFactory();
+        using var host = new T4HostFactory(config.ConfigCenterPath);
         var cloud = host.Services.GetRequiredService<FreeSqlCloud>();
         Assert.Equal(T4Schema, cloud.Use(DbKeys.AdminDb).Ado.QuerySingle<string>("select database()"));
         Assert.Equal(T4Schema, cloud.Use(DbKeys.LogDb).Ado.QuerySingle<string>("select database()"));
@@ -47,20 +47,19 @@ public sealed class P0T4HostIsolationTests
         Assert.Equal(beforeStart, GetSchemaSignature(connection));
     }
 
-    [Fact]
-    [Trait("P0Gate", "Remaining")]
+    [P0T4MySqlFact]
+    [Trait("P0Gate", "Required")]
     public void DB13_ProductionGuardRejectsMissingPlatformStructureWithoutRepairingIt()
     {
         var connection = RequireT4Connection();
+        using var config = WriteT4Configs(connection);
         var manifestPath = FindRepositoryFile("database", "mysql", "manifest.json");
         using var releaseDb = new FreeSqlBuilder().UseConnectionString(DataType.MySql, connection).UseAutoSyncStructure(false).Build();
         ResetP0ReleaseSchema(releaseDb);
         new P0MigrationExecutor(connection, Path.GetDirectoryName(manifestPath)!).Apply(manifestPath, "p0-t4-db13");
         var beforeFailure = GetSchemaSignature(connection);
         releaseDb.Ado.ExecuteNonQuery("drop table `base_user`");
-        WriteT4Configs(connection);
-
-        using var host = new T4HostFactory();
+        using var host = new T4HostFactory(config.ConfigCenterPath);
         var exception = Assert.ThrowsAny<Exception>(() => _ = host.Services);
         Assert.Contains("required release table base_user is missing", exception.ToString(), StringComparison.OrdinalIgnoreCase);
         Assert.Equal(0, releaseDb.Ado.QuerySingle<int>("select count(*) from information_schema.tables where table_schema = database() and table_name = 'base_user'"));
@@ -70,26 +69,27 @@ public sealed class P0T4HostIsolationTests
         new P0MigrationExecutor(connection, Path.GetDirectoryName(manifestPath)!).Apply(manifestPath, "p0-t4-db13-cleanup");
     }
 
-    [Fact]
-    [Trait("P0Gate", "Remaining")]
+    [P0T4MySqlFact]
+    [Trait("P0Gate", "Required")]
     public void DB11_WorkerFailsBeforeStartingPersistentTasksWhenSchemaIsInvalid()
     {
         var connection = RequireT4Connection();
+        using var config = WriteT4Configs(connection);
         var manifestPath = FindRepositoryFile("database", "mysql", "manifest.json");
         using var releaseDb = new FreeSqlBuilder().UseConnectionString(DataType.MySql, connection).UseAutoSyncStructure(false).Build();
         ResetP0ReleaseSchema(releaseDb);
         new P0MigrationExecutor(connection, Path.GetDirectoryName(manifestPath)!).Apply(manifestPath, "p0-t4-db11");
         releaseDb.Ado.ExecuteNonQuery("drop table `base_user`");
-        WriteT4Configs(connection);
-
         var hostAssembly = typeof(Program).Assembly.Location;
-        using var worker = Process.Start(new ProcessStartInfo
+        var workerStartInfo = new ProcessStartInfo
         {
             FileName = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") ?? "dotnet",
             Arguments = $"\"{hostAssembly}\" --worker",
             WorkingDirectory = Path.GetDirectoryName(hostAssembly)!,
             UseShellExecute = false
-        })!;
+        };
+        workerStartInfo.Environment["ADMINCORE_CONFIGCENTER_PATH"] = config.ConfigCenterPath;
+        using var worker = Process.Start(workerStartInfo)!;
         if (!worker.WaitForExit(15000))
         {
             worker.Kill(true);
@@ -117,23 +117,16 @@ public sealed class P0T4HostIsolationTests
         return string.Join("|", db.Ado.Query<string>("select concat(table_name, ':', count(*)) from information_schema.columns where table_schema = database() group by table_name order by table_name"));
     }
 
-    private static void WriteT4Configs(string connection)
+    private static T4ConfigScope WriteT4Configs(string connection)
     {
-        var directories = new[]
-        {
-            Path.Combine(AppContext.BaseDirectory, "ConfigCenter"),
-            Path.Combine(Path.GetDirectoryName(typeof(Program).Assembly.Location)!, "ConfigCenter")
-        }.Distinct(StringComparer.OrdinalIgnoreCase);
+        var scope = T4ConfigScope.Create();
         var manifestPath = FindRepositoryFile("database", "mysql", "manifest.json");
         var guard = new Dictionary<string, object> { ["enabled"] = true, ["manifestPath"] = manifestPath };
         var logDb = new Dictionary<string, object> { ["key"] = "logdb", ["assemblyNames"] = new[] { "ZhonTai.Admin" }, ["includeEntityDbs"] = new[] { "Log" }, ["excludeEntityDbs"] = Array.Empty<string>(), ["createDb"] = false, ["syncStructure"] = false, ["syncData"] = false, ["type"] = "MySql", ["connectionString"] = connection };
-        var db = new Dictionary<string, object> { ["key"] = "admindb", ["assemblyNames"] = new[] { "ZhonTai.Admin" }, ["includeEntityDbs"] = Array.Empty<string>(), ["excludeEntityDbs"] = new[] { "Log" }, ["createDb"] = false, ["syncStructure"] = false, ["syncData"] = true, ["type"] = "MySql", ["connectionString"] = connection, ["dbs"] = new[] { logDb } };
-        foreach (var directory in directories)
-        {
-            Directory.CreateDirectory(directory);
-            File.WriteAllText(Path.Combine(directory, "dbconfig.P0T4HostIsolation.json"), JsonSerializer.Serialize(new Dictionary<string, object> { ["DbConfig"] = db, ["P0SchemaGuard"] = guard }));
-            File.WriteAllText(Path.Combine(directory, "appconfig.P0T4HostIsolation.json"), "{\"AppConfig\":{\"varifyCode\":{\"enable\":false}}}");
-        }
+        var db = new Dictionary<string, object> { ["key"] = "admindb", ["assemblyNames"] = new[] { "ZhonTai.Admin" }, ["includeEntityDbs"] = Array.Empty<string>(), ["excludeEntityDbs"] = new[] { "Log" }, ["createDb"] = false, ["syncStructure"] = false, ["syncData"] = false, ["syncUpdateData"] = false, ["generateData"] = false, ["type"] = "MySql", ["connectionString"] = connection, ["dbs"] = new[] { logDb } };
+        File.WriteAllText(Path.Combine(scope.ConfigCenterPath, "dbconfig.P0T4HostIsolation.json"), JsonSerializer.Serialize(new Dictionary<string, object> { ["DbConfig"] = db, ["P0SchemaGuard"] = guard }));
+        File.WriteAllText(Path.Combine(scope.ConfigCenterPath, "appconfig.P0T4HostIsolation.json"), "{\"AppConfig\":{\"varifyCode\":{\"enable\":false}}}");
+        return scope;
     }
 
     private static string RequireT4Connection()
@@ -154,8 +147,54 @@ public sealed class P0T4HostIsolationTests
         throw new DirectoryNotFoundException("Repository database directory was not found.");
     }
 
-    private sealed class T4HostFactory : WebApplicationFactory<Program>
+    private sealed class T4HostFactory(string configCenterPath) : WebApplicationFactory<Program>
     {
-        protected override void ConfigureWebHost(IWebHostBuilder builder) => builder.UseEnvironment("P0T4HostIsolation");
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            builder.UseEnvironment("P0T4HostIsolation");
+            builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(new Dictionary<string, string>
+            {
+                ["ADMINCORE_CONFIGCENTER_PATH"] = configCenterPath
+            }));
+        }
+    }
+
+    private sealed class T4ConfigScope : IDisposable
+    {
+        private static readonly string[] FileNames = ["dbconfig.P0T4HostIsolation.json", "appconfig.P0T4HostIsolation.json"];
+
+        private T4ConfigScope(string root)
+        {
+            ConfigCenterPath = Path.Combine(root, "ConfigCenter");
+            Directory.CreateDirectory(ConfigCenterPath);
+        }
+
+        public string ConfigCenterPath { get; }
+
+        public static T4ConfigScope Create()
+        {
+            AssertNoBuildArtifacts();
+            return new T4ConfigScope(Path.Combine(Path.GetTempPath(), "admincore-p0-t4", Guid.NewGuid().ToString("N")));
+        }
+
+        public void Dispose()
+        {
+            var root = Directory.GetParent(ConfigCenterPath)!.FullName;
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+            AssertNoBuildArtifacts();
+        }
+
+        private static void AssertNoBuildArtifacts()
+        {
+            var directories = new[]
+            {
+                Path.Combine(AppContext.BaseDirectory, "ConfigCenter"),
+                Path.Combine(Path.GetDirectoryName(typeof(Program).Assembly.Location)!, "ConfigCenter")
+            }.Distinct(StringComparer.OrdinalIgnoreCase);
+            foreach (var directory in directories)
+            {
+                foreach (var fileName in FileNames) Assert.False(File.Exists(Path.Combine(directory, fileName)), $"T4 temporary configuration leaked to {directory}.");
+            }
+        }
     }
 }

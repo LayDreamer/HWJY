@@ -122,6 +122,7 @@ public sealed class AdminCoreAdmissionTests
     }
 
     [MySqlAdmissionFact]
+    [Trait("P0Gate", "Required")]
     public void MySql8ProviderSchemaAndTransactionAreAccepted()
     {
         var connectionString = Environment.GetEnvironmentVariable("ADMINCORE_ACCEPTANCE_MYSQL")!;
@@ -228,8 +229,8 @@ public sealed class MySqlAdmissionFactAttribute : FactAttribute
 {
     public MySqlAdmissionFactAttribute()
     {
-        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("ADMINCORE_ACCEPTANCE_MYSQL")))
-            Skip = "Set ADMINCORE_ACCEPTANCE_MYSQL to a dedicated MySQL 8 acceptance database.";
+        if (P0MySqlAcceptanceEnvironment.IsMissing("ADMINCORE_ACCEPTANCE_MYSQL"))
+            Skip = P0MySqlAcceptanceEnvironment.Missing("ADMINCORE_ACCEPTANCE_MYSQL");
     }
 }
 

@@ -87,7 +87,12 @@ public class HostApp
         bool optional = true,
         bool reloadOnChange = true)
     {
-        var allFilePaths = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, directory).ToPath())
+        // directory 可能是绝对路径（验收隔离目录），此时不能再次拼到 BaseDirectory 之后。
+        var configCenterDirectory = Path.IsPathRooted(directory)
+            ? directory
+            : Path.Combine(AppContext.BaseDirectory, directory).ToPath();
+
+        var allFilePaths = Directory.GetFiles(configCenterDirectory)
             .Where(p => p.EndsWith($".json", StringComparison.OrdinalIgnoreCase));
 
         var environmentFilePaths = allFilePaths.Where(p => p.EndsWith($".{environmentName}.json", StringComparison.OrdinalIgnoreCase));
@@ -153,7 +158,11 @@ public class HostApp
             var appSettings = AppInfo.GetOptions<AppSettings>();
             services.Configure<RpcConfig>(configuration.GetSection("RpcConfig"));
 
-            AddJsonFilesFromDirectory(configuration, env.EnvironmentName, appSettings.ConfigCenterPath);
+            // Acceptance fixtures and process hosts can provide an isolated ConfigCenter without writing into bin/obj.
+            var configCenterPath = configuration["ADMINCORE_CONFIGCENTER_PATH"]
+                ?? Environment.GetEnvironmentVariable("ADMINCORE_CONFIGCENTER_PATH")
+                ?? appSettings.ConfigCenterPath;
+            AddJsonFilesFromDirectory(configuration, env.EnvironmentName, configCenterPath);
             services.Configure<AppConfig>(configuration.GetSection("AppConfig"));
             services.Configure<JwtConfig>(configuration.GetSection("JwtConfig"));
             services.Configure<DbConfig>(configuration.GetSection("DbConfig"));
@@ -351,7 +360,7 @@ public class HostApp
         //添加数据库
         if (!_hostAppOptions.CustomInitDb)
         {
-            P0SchemaGuard.VerifyBeforeDatabaseInitialization(configuration);
+            P0SchemaGuard.VerifyBeforeDatabaseInitialization(configuration, env.IsProduction());
             services.AddDb(env, _hostAppOptions);
         }
 

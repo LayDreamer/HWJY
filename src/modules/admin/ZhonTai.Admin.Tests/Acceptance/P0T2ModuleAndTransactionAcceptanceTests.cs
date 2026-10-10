@@ -16,11 +16,13 @@ namespace ZhonTai.Admin.Tests.Acceptance;
 /// T2 专用夹具：不属于正式业务模块，也不会由 Production Host 装配。
 /// 事务断言始终使用独立连接读取专用验收库。
 /// </summary>
+[Collection("P0T4MySql")]
 public sealed class P0T2ModuleAndTransactionAcceptanceTests
 {
     internal const string DbKey = "p0-t2-acceptance";
 
     [Fact]
+    [Trait("P0Gate", "Required")]
     public void MOD01_ContractDependency_IsAccepted()
     {
         var result = P0ModuleBoundaryChecker.Check(new ModuleDependency(
@@ -33,6 +35,7 @@ public sealed class P0T2ModuleAndTransactionAcceptanceTests
     }
 
     [Fact]
+    [Trait("P0Gate", "Required")]
     public void MOD02_DirectOwnerInternals_AreRejected()
     {
         var result = P0ModuleBoundaryChecker.Check(new ModuleDependency(
@@ -46,10 +49,11 @@ public sealed class P0T2ModuleAndTransactionAcceptanceTests
         Assert.Contains(result.Violations, violation => violation.Contains("IFreeSql", StringComparison.Ordinal));
     }
 
-    [MySqlAdmissionFact]
+    [P0T4MySqlFact]
+    [Trait("P0Gate", "Required")]
     public void TX01_TX02_TX03_OwnerTransaction_IsAtomicOnMySql8()
     {
-        var connectionString = Environment.GetEnvironmentVariable("ADMINCORE_ACCEPTANCE_MYSQL")!;
+        var connectionString = Environment.GetEnvironmentVariable("ADMINCORE_T4_MYSQL")!;
         var runId = Guid.NewGuid().ToString("N");
         using var fixture = T2MySqlFixture.Create(connectionString);
 

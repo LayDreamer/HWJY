@@ -1,0 +1,31 @@
+{
+  "DbConfig": {
+    "key": "admindb",
+    "assemblyNames": [ "ZhonTai.Admin" ],
+    "type": "MySql",
+    "connectionString": "",
+    "createDb": false,
+    "syncStructure": false,
+    "syncData": false,
+    "syncUpdateData": false,
+    "generateData": false,
+    "dbs": [
+      {
+        "key": "logdb",
+        "assemblyNames": [ "ZhonTai.Admin" ],
+        "includeEntityDbs": [ "Log" ],
+        "type": "MySql",
+        "connectionString": "",
+        "createDb": false,
+        "syncStructure": false,
+        "syncData": false,
+        "syncUpdateData": false,
+        "generateData": false
+      }
+    ]
+  },
+  "P0SchemaGuard": {
+    "enabled": true,
+    "manifestPath": ""
+  }
+}

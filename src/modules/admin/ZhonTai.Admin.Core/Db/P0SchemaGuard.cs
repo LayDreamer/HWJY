@@ -19,9 +19,12 @@ public sealed class P0SchemaGuardOptions
 
 public static class P0SchemaGuard
 {
-    public static void VerifyBeforeDatabaseInitialization(IConfiguration configuration)
+    public static void VerifyBeforeDatabaseInitialization(IConfiguration configuration, bool isProduction)
     {
         var options = configuration.GetSection("P0SchemaGuard").Get<P0SchemaGuardOptions>();
+        var dbConfig = configuration.GetSection("DbConfig").Get<DbConfig>();
+
+        ValidateConfiguration(options, dbConfig, isProduction);
         if (options?.Enabled != true)
         {
             return;
@@ -38,12 +41,6 @@ public static class P0SchemaGuard
         if (string.IsNullOrWhiteSpace(options.ExpectedVersion) || string.IsNullOrWhiteSpace(options.ExpectedChecksum))
         {
             throw new InvalidOperationException("P0 Schema Guard requires a release ManifestPath or explicit expected version and checksum when enabled.");
-        }
-
-        var dbConfig = configuration.GetSection("DbConfig").Get<DbConfig>();
-        if (dbConfig == null || dbConfig.Type != DataType.MySql || string.IsNullOrWhiteSpace(dbConfig.ConnectionString))
-        {
-            throw new InvalidOperationException("P0 Schema Guard requires an explicit MySQL DbConfig.");
         }
 
         using var db = new FreeSqlBuilder()
@@ -81,6 +78,46 @@ public static class P0SchemaGuard
         catch (Exception exception)
         {
             throw new InvalidOperationException("P0 Schema Guard could not verify p0_schema_migration before database initialization.", exception);
+        }
+    }
+
+    /// <summary>Validates fail-fast production requirements without opening a database connection.</summary>
+    public static void ValidateConfiguration(P0SchemaGuardOptions options, DbConfig dbConfig, bool isProduction)
+    {
+        if (!isProduction)
+        {
+            return;
+        }
+
+        if (options?.Enabled != true)
+        {
+            throw new InvalidOperationException("Production requires P0SchemaGuard.Enabled=true before database initialization.");
+        }
+
+        if (string.IsNullOrWhiteSpace(options.ManifestPath)
+            && (string.IsNullOrWhiteSpace(options.ExpectedVersion) || string.IsNullOrWhiteSpace(options.ExpectedChecksum)))
+        {
+            throw new InvalidOperationException("Production P0 Schema Guard requires ManifestPath or an explicit expected version and checksum.");
+        }
+
+        ValidateDatabaseConfig(dbConfig, "DbConfig");
+    }
+
+    private static void ValidateDatabaseConfig(DbConfig dbConfig, string name)
+    {
+        if (dbConfig == null || dbConfig.Type != DataType.MySql || string.IsNullOrWhiteSpace(dbConfig.ConnectionString))
+        {
+            throw new InvalidOperationException($"Production {name} requires an explicit MySQL DbConfig.");
+        }
+
+        if (dbConfig.CreateDb || dbConfig.SyncStructure || dbConfig.SyncData || dbConfig.SyncUpdateData || dbConfig.GenerateData)
+        {
+            throw new InvalidOperationException($"Production {name} must disable createDb, syncStructure, syncData, syncUpdateData, and generateData.");
+        }
+
+        foreach (var child in dbConfig.Dbs ?? [])
+        {
+            ValidateDatabaseConfig(child, $"{name}.Dbs[{child.Key ?? "unknown"}]");
         }
     }
 

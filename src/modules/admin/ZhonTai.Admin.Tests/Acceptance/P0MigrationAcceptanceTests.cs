@@ -19,8 +19,8 @@ public sealed class P0MigrationAcceptanceTests
 {
     private const string T4Schema = "admincore_p0_t4_acceptance";
 
-    [Fact]
-    [Trait("P0Gate", "Remaining")]
+    [P0T4MySqlFact]
+    [Trait("P0Gate", "Required")]
     public void DB01_DB02_DB08_DB09_DB12_ManifestApplyIsIdempotentAndExcludesRollback()
     {
         var connectionString = RequireT4Connection();
@@ -39,8 +39,8 @@ public sealed class P0MigrationAcceptanceTests
         Assert.Equal(1, db.Ado.QuerySingle<int>("select count(*) from information_schema.tables where table_schema = database() and table_name = 'base_user'"));
     }
 
-    [Fact]
-    [Trait("P0Gate", "Remaining")]
+    [P0T4MySqlFact]
+    [Trait("P0Gate", "Required")]
     public void DB04_DB05_DB06_ChecksumFailedAndRunningStatesBlockApply()
     {
         var connectionString = RequireT4Connection();
@@ -69,8 +69,8 @@ public sealed class P0MigrationAcceptanceTests
         }
     }
 
-    [Fact]
-    [Trait("P0Gate", "Remaining")]
+    [P0T4MySqlFact]
+    [Trait("P0Gate", "Required")]
     public void DB03_ApprovedRollbackCanBeRecoveredUsingTheApprovedForwardArtifact()
     {
         var connectionString = RequireT4Connection();
@@ -90,8 +90,8 @@ public sealed class P0MigrationAcceptanceTests
         Assert.Equal("Succeeded", db.Ado.QuerySingle<string>("select Status from p0_schema_migration where Version = '20260916.002'"));
     }
 
-    [Fact]
-    [Trait("P0Gate", "Remaining")]
+    [P0T4MySqlFact]
+    [Trait("P0Gate", "Required")]
     public async Task DB07_TwoRealExecutorsCompeteForTheSameMigrationLock()
     {
         var connectionString = RequireT4Connection();
