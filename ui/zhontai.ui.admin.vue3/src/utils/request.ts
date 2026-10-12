@@ -1,4 +1,4 @@
-import axios, { AxiosInstance, AxiosRequestConfig } from 'axios'
+import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Session, Local } from '/@/utils/storage'
 import qs from 'qs'
@@ -18,7 +18,7 @@ const service: AxiosInstance = axios.create({
 
 // 添加请求拦截器
 service.interceptors.request.use(
-  (config: AxiosRequestConfig) => {
+  (config: InternalAxiosRequestConfig) => {
     // 在发送请求之前做些什么 token
     if (Local.get(adminTokenKey)) {
       config.headers!['Authorization'] = `${Local.get(adminTokenKey)}`

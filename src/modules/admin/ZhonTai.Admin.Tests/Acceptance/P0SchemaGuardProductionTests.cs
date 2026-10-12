@@ -6,6 +6,7 @@ using ZhonTai.Admin.Core.Db;
 
 namespace ZhonTai.Admin.Tests.Acceptance;
 
+[Trait("P0Gate", "Required")]
 public sealed class P0SchemaGuardProductionTests
 {
     [Fact]

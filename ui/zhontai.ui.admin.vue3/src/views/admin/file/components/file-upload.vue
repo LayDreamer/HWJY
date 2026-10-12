@@ -98,7 +98,7 @@ const onError: UploadProps['onError'] = (error) => {
   if (error.message) {
     try {
       message = JSON.parse(error.message)?.msg
-    } catch (err) {
+    } catch {
       message = error.message || ''
     }
   }

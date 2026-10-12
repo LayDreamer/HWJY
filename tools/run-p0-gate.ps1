@@ -1,33 +1,37 @@
 [CmdletBinding()]
-param()
-
+param([ValidateSet('Full', 'Local')][string]$Mode = 'Full', [switch]$NoRestore)
 $ErrorActionPreference = 'Stop'
+$root = Split-Path $PSScriptRoot -Parent
 $required = @('ADMINCORE_T4_MYSQL', 'ADMINCORE_HOST_MYSQL', 'ADMINCORE_HOST_MYSQL_LOG', 'ADMINCORE_ACCEPTANCE_MYSQL')
-$missing = @($required | Where-Object { [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($_)) })
-if ($missing.Count -gt 0) {
-    Write-Error ('P0 Gate BLOCKED: missing required environment variables: ' + ($missing -join ', '))
-    exit 2
+if ($Mode -eq 'Full') {
+    $missing = @($required | Where-Object { [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($_)) })
+    if ($missing.Count -gt 0) {
+        [Console]::Error.WriteLine('P0 Gate BLOCKED: missing isolated MySQL configuration: ' + ($missing -join ', '))
+        exit 2
+    }
 }
-
-$project = Join-Path $PSScriptRoot '..\src\modules\admin\ZhonTai.Admin.Tests\ZhonTai.Admin.Tests.csproj'
-$output = & dotnet test $project -c Release --no-build --no-restore --filter 'P0Gate=Required' '--logger:console;verbosity=normal' 2>&1 | Tee-Object -Variable testOutput
-$exitCode = $LASTEXITCODE
-$summary = @($testOutput | Select-String -Pattern 'Failed:\s*(\d+),\s*Passed:\s*(\d+),\s*Skipped:\s*(\d+)' | Select-Object -Last 1)
-
-if ($summary.Count -ne 1) {
-    Write-Error 'P0 Gate FAILED: test summary was not produced.'
+$results = Join-Path $root 'artifacts/quality'
+New-Item -ItemType Directory -Force -Path $results | Out-Null
+$runId = [Guid]::NewGuid().ToString('N')
+$reportName = "p0-$Mode-$runId.trx"
+$report = Join-Path $results $reportName
+try {
+    $arguments = @('build', (Join-Path $root 'src/ZhonTai.sln'), '-c', 'Release', '-m:1', '-nodeReuse:false')
+    if ($NoRestore) { $arguments += '--no-restore' }
+    & dotnet @arguments 2>&1 | Tee-Object -FilePath (Join-Path $results 'backend-build.log') | Out-Host
+    if ($LASTEXITCODE -ne 0) { throw 'Backend build failed.' }
+    $filter = 'P0Gate=Required'
+    if ($Mode -eq 'Local') { $filter += '&P0Dependency!=MySql' }
+    $project = Join-Path $root 'src/modules/admin/ZhonTai.Admin.Tests/ZhonTai.Admin.Tests.csproj'
+    & dotnet test $project -c Release --no-build --no-restore --filter $filter '--logger:console;verbosity=normal' "--logger:trx;LogFileName=$reportName" --results-directory $results 2>&1 |
+        Tee-Object -FilePath (Join-Path $results "backend-$Mode.log") | Out-Host
+    $testExit = $LASTEXITCODE
+    . (Join-Path $PSScriptRoot 'assert-gate-report.ps1')
+    Assert-GateReport -Path $report -Mode $Mode -TestExitCode $testExit
+    Write-Host "P0 $Mode Gate PASSED. Report: $report"
+    if ($Mode -eq 'Local') { Write-Host 'Local Gate excludes MySQL acceptance and is not a release approval.' }
+    exit 0
+} catch {
+    [Console]::Error.WriteLine('P0 Gate FAILED: ' + $_.Exception.Message)
     exit 1
 }
-
-$match = [regex]::Match($summary[0].ToString(), 'Failed:\s*(\d+),\s*Passed:\s*(\d+),\s*Skipped:\s*(\d+)')
-$failed = [int]$match.Groups[1].Value
-$passed = [int]$match.Groups[2].Value
-$skipped = [int]$match.Groups[3].Value
-Write-Host "P0 Gate totals: Passed=$passed Failed=$failed Skipped=$skipped"
-
-if ($exitCode -ne 0 -or $failed -ne 0 -or $skipped -ne 0 -or $passed -eq 0) {
-    Write-Error 'P0 Gate FAILED: every required test must execute and pass.'
-    exit 1
-}
-
-exit 0

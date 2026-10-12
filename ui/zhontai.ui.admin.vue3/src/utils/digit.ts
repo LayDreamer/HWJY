@@ -41,7 +41,7 @@ function float2Fixed(num: number | string) {
  */
 function checkBoundary(num: number | string) {
   if (_boundaryCheckingState) {
-    if (num > Number.MAX_SAFE_INTEGER || num < Number.MIN_SAFE_INTEGER) {
+    if (Number(num) > Number.MAX_SAFE_INTEGER || Number(num) < Number.MIN_SAFE_INTEGER) {
       window.console.warn(`${num} 超出了精度限制，结果可能不正确`)
     }
   }

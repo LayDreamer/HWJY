@@ -39,11 +39,11 @@ public class PermissionHandler : IPermissionHandler
             && m.HttpMethods.NotNull() && m.HttpMethods.Split(',').Any(n => n.NotNull() && n.EqualsIgnoreCase(httpMethod))
         );
 
-        if (!valid && apiAccess != null) 
+        if (!valid && apiAccess?.Codes?.Length > 0)
         {
             if (apiAccess.All)
             {
-                valid = userPermission.Codes.All(a => apiAccess.Codes.Contains(a));
+                valid = apiAccess.Codes.All(code => userPermission.Codes.Contains(code));
             }
             else
             {

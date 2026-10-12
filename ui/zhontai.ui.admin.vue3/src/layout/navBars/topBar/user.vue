@@ -95,7 +95,7 @@ const avatar = computed(() => {
 
 // 设置分割样式
 const layoutUserFlexNum = computed(() => {
-  let num: string | number = ''
+  let num: string | number
   const { layout, isClassicSplitMenu } = themeConfig.value
   const layoutArr: string[] = ['defaults', 'columns']
   if (layoutArr.includes(layout) || (layout === 'classic' && !isClassicSplitMenu)) num = '1'
@@ -184,7 +184,7 @@ const initWebSocket = () => {
     onMessage: (event: MessageEvent) => {
       if (event.data) {
         var data = JSON.parse(event.data)
-        console.log(data)
+
         if (data.evts?.length > 0) {
           data.evts.forEach((evt: any) => {
             mittBus.emit(evt.name, evt.data)

@@ -201,7 +201,7 @@ const onExport = async () => {
     .then((res: any) => {
       const contentDisposition = res.headers['content-disposition']
       const matchs = /filename="?([^;"]+)/i.exec(contentDisposition)
-      let fileName = ''
+      let fileName
       if (matchs && matchs.length > 1) {
         fileName = decodeURIComponent(matchs[1])
       } else {

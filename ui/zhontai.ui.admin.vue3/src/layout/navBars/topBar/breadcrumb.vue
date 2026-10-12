@@ -91,7 +91,7 @@ const getBreadcrumbList = (arr: RouteItems, path: string) => {
       //查找第一个匹配的路由，将其展开添加到面包屑中
       const routeArr = treeToList([routeTree[0]])
       if (routeArr.length > 0) {
-        routeArr.forEach((item: RouteItem, k: number) => {
+        routeArr.forEach((item: RouteItem, _k: number) => {
           !state.breadcrumbList.find((a) => a.path === item.path) && state.breadcrumbList.push(item)
         })
         //匹配不到再使用路径去匹配

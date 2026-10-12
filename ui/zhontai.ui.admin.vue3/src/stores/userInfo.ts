@@ -64,7 +64,6 @@ export const useUserInfo = defineStore('userInfo', {
     clear: debounce(
       function (this: any) {
         this.removeTokenInfo()
-        window.requests = []
         modal.closeLoading()
         const route = router.currentRoute.value
         if (route.path === '/login') {

@@ -146,7 +146,7 @@ const filterNodeMethod = (value: string, data: any) => {
   return data.label.indexOf(value) !== -1
 }
 
-const onNodeDblclick = (e: any, data: any) => {}
+const onNodeDblclick = (_e: any, _data: any) => {}
 
 defineExpose({
   filter,

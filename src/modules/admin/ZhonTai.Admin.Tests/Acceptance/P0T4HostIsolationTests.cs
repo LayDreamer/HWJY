@@ -18,6 +18,7 @@ namespace ZhonTai.Admin.Tests.Acceptance;
 
 /// <summary>Prevent a T4 host fixture from silently falling back to a T2/T3 or production schema.</summary>
 [Collection("P0T4MySql")]
+[Trait("P0Dependency", "MySql")]
 public sealed class P0T4HostIsolationTests
 {
     private const string T4Schema = "admincore_p0_t4_acceptance";

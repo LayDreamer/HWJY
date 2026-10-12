@@ -175,7 +175,7 @@ const getUploadData = () => {
 }
 
 //超出限制
-const onExceed = (files: File[], uploadFiles: UploadUserFile[]) => {
+const onExceed = (files: File[], _uploadFiles: UploadUserFile[]) => {
   fileUploadRef.value!.clearFiles()
   const file = files[0] as UploadRawFile
   file.uid = genFileId()
@@ -196,7 +196,7 @@ const onError: UploadProps['onError'] = (error) => {
   if (error.message) {
     try {
       message = JSON.parse(error.message)?.msg
-    } catch (err) {
+    } catch {
       message = error.message || ''
     }
   }
@@ -212,7 +212,7 @@ const onError: UploadProps['onError'] = (error) => {
 }
 
 // 上传中
-const onProgress: UploadProps['onProgress'] = (evt: UploadProgressEvent, uploadFile: UploadFile) => {
+const onProgress: UploadProps['onProgress'] = (evt: UploadProgressEvent, _uploadFile: UploadFile) => {
   state.percent = evt.percent
   //uploadFile.percentage
 }
@@ -254,7 +254,7 @@ const onDownloadTemplate = async () => {
     .then((res: any) => {
       const contentDisposition = res.headers['content-disposition']
       const matchs = /filename="?([^;"]+)/i.exec(contentDisposition)
-      let fileName = ''
+      let fileName
       if (matchs && matchs.length > 1) {
         fileName = decodeURIComponent(matchs[1])
       } else {
@@ -291,7 +291,7 @@ const onDownloadErrorMark = async () => {
       state.showErrorMark = false
       const contentDisposition = res.headers['content-disposition']
       const matchs = /filename="?([^;"]+)/i.exec(contentDisposition)
-      let fileName = ''
+      let fileName
       if (matchs && matchs.length > 1) {
         fileName = decodeURIComponent(matchs[1])
       } else {
@@ -335,7 +335,7 @@ const onDownloadErrorMark = async () => {
 }
 
 // 打开对话框
-const open = async (row: any = {}) => {
+const open = async (_row: any = {}) => {
   merge(state, cloneDeep(initState))
   state.showDialog = true
 }

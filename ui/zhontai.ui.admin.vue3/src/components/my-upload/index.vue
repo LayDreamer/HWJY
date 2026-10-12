@@ -56,7 +56,7 @@ const state = reactive({
 watch(
   () => state.url,
   () => {
-    console.log(state.url)
+
     emits('update:modelValue', cloneDeep(state.url))
   },
   { deep: true }
@@ -93,7 +93,7 @@ const onError = (error: any) => {
   if (error.message) {
     try {
       message = JSON.parse(error.message)?.msg
-    } catch (err) {
+    } catch {
       message = error.message || ''
     }
   }
@@ -107,7 +107,7 @@ const handleExceed = (files: any) => {
   uploadRef.value?.submit()
 }
 //移除
-const onRemove = (file: any) => {
+const onRemove = (_file: any) => {
   state.url = ''
 }
 </script>

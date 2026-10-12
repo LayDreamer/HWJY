@@ -214,7 +214,7 @@ const onTemplateChange = async (templateId: number) => {
     if (res.data && res.data.template) {
       state.dataTree = [JSON.parse(res.data.template)]
     }
-  } catch (error) {
+  } catch {
     ElMessage.error(t('加载查询方案失败'))
   }
 }

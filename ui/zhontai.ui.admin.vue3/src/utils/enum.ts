@@ -28,7 +28,7 @@ export function getDescByName<T extends EnumType, K extends keyof T>(enumObj: T,
 
 /** 根据枚举 value 查找描述 */
 export function getDescByValue<T extends EnumType>(enumObj: T, value: T[keyof T]['value']): string | undefined {
-  for (const [key, item] of Object.entries(enumObj)) {
+  for (const item of Object.values(enumObj)) {
     if (item.value === value) {
       return item.desc
     }

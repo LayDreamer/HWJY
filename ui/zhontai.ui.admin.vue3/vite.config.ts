@@ -4,7 +4,7 @@ import { defineConfig, ConfigEnv, UserConfig } from 'vite'
 import compression from 'vite-plugin-compression'
 import vueSetupExtend from 'vite-plugin-vue-setup-extend'
 import { loadEnv } from './src/utils/vite'
-import { createSvgIconsPlugin } from 'vite-plugin-svg-icons'
+import { svgIconsPlugin } from './tools/svg-icons.mjs'
 import AutoImport from 'unplugin-auto-import/vite'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -65,12 +65,7 @@ const viteConfig = defineConfig(({ mode, command }: ConfigEnv) => {
         disable: !env.VITE_COMPRESSION,
         deleteOriginFile: false,
       }),
-      createSvgIconsPlugin({
-        iconDirs: [pathResolve('src/assets/icons')],
-        symbolId: 'icon-[dir]-[name]',
-        inject: 'body-last',
-        customDomId: '__svg__icons__dom__',
-      }),
+      svgIconsPlugin(pathResolve('src/assets/icons')),
       AutoImport({
         imports: ['vue', 'vue-router', 'pinia', 'vue-i18n'],
         vueTemplate: true,
@@ -104,6 +99,7 @@ const viteConfig = defineConfig(({ mode, command }: ConfigEnv) => {
     },
     build: {
       outDir: 'dist',
+      emptyOutDir: true,
       chunkSizeWarningLimit: 1500,
       sourcemap: false,
       rollupOptions: {

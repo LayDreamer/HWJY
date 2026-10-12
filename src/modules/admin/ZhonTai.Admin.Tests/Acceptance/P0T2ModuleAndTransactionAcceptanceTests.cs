@@ -50,6 +50,7 @@ public sealed class P0T2ModuleAndTransactionAcceptanceTests
     }
 
     [P0T4MySqlFact]
+    [Trait("P0Dependency", "MySql")]
     [Trait("P0Gate", "Required")]
     public void TX01_TX02_TX03_OwnerTransaction_IsAtomicOnMySql8()
     {

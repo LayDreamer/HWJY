@@ -33,12 +33,12 @@ const setWatermark = (str: string) => {
 const watermark = {
   // 设置水印
   set: (str: string) => {
-    let id = setWatermark(str)
-    if (document.getElementById(id) === null) id = setWatermark(str)
+    const id = setWatermark(str)
+    if (document.getElementById(id) === null) setWatermark(str)
   },
   // 删除水印
   del: () => {
-    let id = '1.23452384164.123412416'
+    const id = '1.23452384164.123412416'
     if (document.getElementById(id) !== null) document.body.removeChild(<HTMLElement>document.getElementById(id))
   },
 }

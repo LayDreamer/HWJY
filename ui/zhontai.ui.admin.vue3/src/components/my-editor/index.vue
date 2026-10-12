@@ -74,7 +74,7 @@ const state = reactive({
         },
       },
       insertImage: {
-        checkImage(src: string, alt: string, href: string): boolean | string | undefined {
+        checkImage(src: string, _alt: string, _href: string): boolean | string | undefined {
           if (!src) {
             return
           }

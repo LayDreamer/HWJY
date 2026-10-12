@@ -191,7 +191,7 @@ const onOneClickLogin = (row: TenantGetPageOutput) => {
       const res = await new TenantApi().oneClickLogin({ tenantId: row.id }, { loading: true })
       if (res?.success) {
         proxy.$modal.msgSuccess(t('一键登录成功'))
-        window.requests = []
+
         Session.remove('tagsViewList')
         storesUseUserInfo.setTokenInfo(res.data)
         window.location.href = '/'

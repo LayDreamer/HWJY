@@ -489,6 +489,12 @@ public class HealthChecksConfig
     /// 访问路径
     /// </summary>
     public string Path { get; set; } = "/health";
+
+    /// <summary>外部依赖就绪检查路径</summary>
+    public string ReadinessPath { get; set; } = "/health/ready";
+
+    /// <summary>进程存活检查路径</summary>
+    public string LivenessPath { get; set; } = "/health/live";
 }
 
 /// <summary>

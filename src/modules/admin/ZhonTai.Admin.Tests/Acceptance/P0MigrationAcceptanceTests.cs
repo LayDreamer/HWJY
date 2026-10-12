@@ -15,6 +15,7 @@ namespace ZhonTai.Admin.Tests.Acceptance;
 /// 不从 PowerShell 手动加载数据库驱动。
 /// </summary>
 [Collection("P0T4MySql")]
+[Trait("P0Dependency", "MySql")]
 public sealed class P0MigrationAcceptanceTests
 {
     private const string T4Schema = "admincore_p0_t4_acceptance";

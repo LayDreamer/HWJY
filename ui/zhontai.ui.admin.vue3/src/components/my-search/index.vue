@@ -158,7 +158,7 @@ const onSearch = async () => {
     await formRef.value?.validate()
     const filters = Object.entries(formState)
       // 根据配置过滤空值
-      .filter(([_, value]) => !props.isFilterEmptyValue || !isEmptyValue(value))
+      .filter(([, value]) => !props.isFilterEmptyValue || !isEmptyValue(value))
       .map(([field, value]) => ({
         field,
         operator: props.searchItems.find((item) => item.field === field)?.operator || 'Equal',

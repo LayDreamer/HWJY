@@ -129,7 +129,7 @@ import { useUserInfo } from '/@/stores/userInfo'
 import { cloneDeep } from 'lodash-es'
 import { testMobile, testEmail } from '/@/utils/test'
 import { AccountType } from '/@/api/admin/enum-contracts'
-import { getDescByValue } from '/@/utils/enum'
+
 import { ComponentType } from '/@/api/admin.extend/enum-contracts'
 
 const MyCaptchaDialog = defineAsyncComponent(() => import('/@/components/my-captcha/dialog.vue'))

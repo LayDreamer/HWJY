@@ -73,7 +73,7 @@ import { UserApi } from '/@/api/admin/User'
 import eventBus from '/@/utils/mitt'
 import { t } from '/@/i18n'
 
-const props = defineProps({
+defineProps({
   title: {
     type: String,
     default: '',
@@ -86,7 +86,7 @@ const props = defineProps({
 
 const { proxy } = getCurrentInstance() as any
 
-const emits = defineEmits(['sure'])
+defineEmits(['sure'])
 
 const userTableRef = useTemplateRef<TableInstance>('userTableRef')
 

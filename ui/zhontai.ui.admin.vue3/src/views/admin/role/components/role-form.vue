@@ -116,7 +116,7 @@ const onSure = () => {
     if (!valid) return
 
     state.sureLoading = true
-    let res = {} as any
+    let res: any
     state.form.parentId = state.form.parentId && state.form.parentId > 0 ? state.form.parentId : undefined
     if (state.form.id != undefined && state.form.id > 0) {
       res = await new RoleApi().update(state.form, { showSuccessMessage: true }).catch(() => {

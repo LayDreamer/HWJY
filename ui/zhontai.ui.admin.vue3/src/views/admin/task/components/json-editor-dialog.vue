@@ -23,7 +23,7 @@
 import MyJsonEditor from '/@/components/my-json-editor/index.vue'
 import { t } from '/@/i18n'
 
-const props = defineProps({
+defineProps({
   title: {
     type: String,
     default: '',

@@ -10,7 +10,7 @@ import { ElMessage } from 'element-plus'
 export function useChangeColor() {
   // str 颜色值字符串
   const hexToRgb = (str: string): any => {
-    let hexs: any = ''
+    let hexs: any
     let reg = /^\#?[0-9A-Fa-f]{6}$/
     if (!reg.test(str)) {
       ElMessage.warning('输入错误的hex')

@@ -33,7 +33,7 @@ export class WebSocketClient {
 
   private async connect(): Promise<void> {
     const res = await new WebSocketApi().preConnect({}).catch(() => {})
-    let url = ''
+    let url
     if (res?.success) {
       url = res.data.server
     } else {
@@ -54,7 +54,7 @@ export class WebSocketClient {
     this.socket = new WebSocket(url)
 
     this.socket.onopen = () => {
-      console.log('WebSocket connection opened')
+
       this.isConnected = true
       this.startHeartbeat()
       this.clearReconnectTimer()
@@ -66,7 +66,7 @@ export class WebSocketClient {
     }
 
     this.socket.onclose = () => {
-      console.log('WebSocket connection closed')
+
       this.isConnected = false
       this.stopHeartbeat()
       this.startReconnect()
@@ -110,7 +110,7 @@ export class WebSocketClient {
     }
 
     this.reconnectTimer = window.setTimeout(async () => {
-      console.log('Attempting to reconnect...')
+
       this.connect()
     }, this.reconnectInterval)
   }

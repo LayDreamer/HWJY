@@ -425,7 +425,7 @@ const onClearPaper = () => {
         if (hiprintTemplate.value) {
           hiprintTemplate.value.clear()
         }
-      } catch (error) {}
+      } catch { /* A failed clear does not close the designer. */ }
     })
     .catch(() => {})
 }

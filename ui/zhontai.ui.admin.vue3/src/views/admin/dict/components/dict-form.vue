@@ -149,7 +149,7 @@ const onSure = () => {
     if (!valid) return
 
     state.sureLoading = true
-    let res = {} as any
+    let res: any
     if (state.form.id != undefined && state.form.id > 0) {
       res = await new DictApi().update(state.form, { showSuccessMessage: true }).catch(() => {
         state.sureLoading = false

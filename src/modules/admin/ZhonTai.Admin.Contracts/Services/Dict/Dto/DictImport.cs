@@ -1,7 +1,6 @@
 ﻿using Magicodes.ExporterAndImporter.Core;
 using Magicodes.ExporterAndImporter.Core.Filters;
 using Magicodes.ExporterAndImporter.Core.Models;
-using Magicodes.ExporterAndImporter.Excel;
 using System.ComponentModel.DataAnnotations;
 
 namespace ZhonTai.Admin.Services.Dict.Dto;
@@ -31,7 +30,7 @@ public class DictImportHeaderFilter : IImportHeaderFilter
 /// <summary>
 /// 字典导入
 /// </summary>
-[ExcelImporter(IsLabelingError = true, ImportHeaderFilter = typeof(DictImportHeaderFilter))]
+[Importer(ImportHeaderFilter = typeof(DictImportHeaderFilter))]
 public class DictImport
 {
     /// <summary>

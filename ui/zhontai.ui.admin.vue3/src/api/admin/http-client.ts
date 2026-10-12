@@ -75,6 +75,7 @@ const loadingInstance: LoadingInstance = {
 }
 
 const apiWhiteList = ['/api/admin/auth/refresh']
+let tokenRefresh: { token: string; promise: Promise<string> } | undefined
 
 export class HttpClient<SecurityDataType = unknown> {
   public instance: AxiosInstance
@@ -278,7 +279,7 @@ export class HttpClient<SecurityDataType = unknown> {
     }
 
     // 请求拦截
-    this.instance.interceptors.request.use(
+    const requestInterceptor = this.instance.interceptors.request.use(
       (config) => {
         config.headers['accept-language'] = lang.value
         this.removePending(config)
@@ -299,49 +300,48 @@ export class HttpClient<SecurityDataType = unknown> {
           return config
         }
 
-        if (tokenInfo && tokenInfo.accessToken) {
-          // 判断 accessToken 是否快失效
+        if (login && tokenInfo && tokenInfo.accessToken) {
           const now = new Date().getTime()
           const expiresAt = new Date(tokenInfo.accessTokenExpiresAt).getTime()
-          const maxThreshold = tokenInfo.accessTokenLifeTime * 1000 * 0.5
-          // 确保阈值不超过 5 分钟且不超过 accessTokenLifeTime 的一半
-          const threshold = Math.min(5 * 60 * 1000, maxThreshold)
+          const threshold = Math.min(5 * 60 * 1000, tokenInfo.accessTokenLifeTime * 1000 * 0.5)
           if (expiresAt - now < threshold) {
-            // 如果正在刷新，则将当前请求加入等待队列
-            if (!window.tokenRefreshing) {
-              //加锁
-              window.tokenRefreshing = true
-
-              new AuthApi()
-                .refresh({ token: tokenInfo.accessToken }, { login: false })
+            const accessToken = tokenInfo.accessToken
+            // 同一登录会话共享刷新结果，失败也必须结束所有等待请求。
+            if (!tokenRefresh || tokenRefresh.token !== accessToken) {
+              const refreshPromise: Promise<string> = Promise.resolve()
+                .then(() => new AuthApi().refresh({ token: accessToken }, { login: false, showErrorMessage: false }))
                 .then((res) => {
-                  if (res?.success) {
-                    storesUseUserInfo.setTokenInfo(res.data)
-                    //处理等待队列中的请求
-                    if (window.requests?.length > 0) {
-                      window.requests.forEach((apiRequest) => apiRequest(res.data.accessToken))
-                      window.requests = []
-                    }
-                  } else {
-                    storesUseUserInfo.clear()
+                  if (!res?.success || !res.data?.accessToken) {
+                    throw new Error(t('登录已失效，请重新登录'))
                   }
+                  if (storesUseUserInfo.getTokenInfo()?.accessToken !== accessToken) {
+                    throw new Error(t('登录状态已变化，请重新发起请求'))
+                  }
+                  storesUseUserInfo.setTokenInfo(res.data)
+                  return res.data.accessToken
                 })
-                .catch((error) => {})
+                .catch((error) => {
+                  if (storesUseUserInfo.getTokenInfo()?.accessToken === accessToken) {
+                    storesUseUserInfo.clear()
+                    throw error
+                  }
+                  throw new Error(t('登录状态已变化，请重新发起请求'))
+                })
                 .finally(() => {
-                  // 清空等待队列
-                  window.requests = []
-                  // 解锁
-                  window.tokenRefreshing = false
+                  if (tokenRefresh?.promise === refreshPromise) tokenRefresh = undefined
                 })
+              tokenRefresh = { token: accessToken, promise: refreshPromise }
             }
 
-            window.requests = window.requests ? window.requests : []
-            return new Promise((resolve) => {
-              window.requests.push((token) => {
+            return tokenRefresh.promise
+              .then((token) => {
                 config.headers!['Authorization'] = `Bearer ${token}`
-                resolve(config)
+                return config
               })
-            })
+              .catch((error) => {
+                cancelRepeatRequest && this.removePending(config)
+                throw error
+              })
           }
         }
 
@@ -357,7 +357,7 @@ export class HttpClient<SecurityDataType = unknown> {
       }
     )
     // 响应拦截
-    this.instance.interceptors.response.use(
+    const responseInterceptor = this.instance.interceptors.response.use(
       (res) => {
         cancelRepeatRequest && res.config && this.removePending(res.config)
         loading && this.closeLoading(loading)
@@ -410,5 +410,9 @@ export class HttpClient<SecurityDataType = unknown> {
         url: path,
       })
       .then((response) => (returnResponse ? response : response.data))
+      .finally(() => {
+        this.instance.interceptors.request.eject(requestInterceptor)
+        this.instance.interceptors.response.eject(responseInterceptor)
+      })
   }
 }

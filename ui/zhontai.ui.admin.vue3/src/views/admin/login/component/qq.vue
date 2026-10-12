@@ -14,7 +14,7 @@
 
 <script setup lang="ts" name="loginScan">
 import QRCode from 'qrcodejs2-fixes'
-import { t } from '/@/i18n'
+
 
 // 定义变量内容
 const qrcodeRef = useTemplateRef<HTMLElement | null>('qrcodeRef')

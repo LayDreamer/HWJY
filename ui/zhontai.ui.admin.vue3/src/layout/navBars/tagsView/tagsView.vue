@@ -461,9 +461,9 @@ const tagsViewmoveToCurrentTag = () => {
     // 下一个 tags li dom
     let liNextTag = tagsRefs.value[state.tagsRefsIndex + 1]
     // 上一个 tags li dom 的偏移距离
-    let beforePrevL = 0
+    let beforePrevL
     // 下一个 tags li dom 的偏移距离
-    let afterNextL = 0
+    let afterNextL
     if (liDom === liFirst) {
       // 头部
       scrollRefs.scrollLeft = 0

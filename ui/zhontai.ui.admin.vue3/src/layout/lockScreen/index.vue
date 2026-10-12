@@ -36,7 +36,7 @@
                 :placeholder="t('请输入密码')"
                 ref="layoutLockScreenInputRef"
                 v-model="state.lockScreenPassword"
-                @keyup.enter.native.stop="onLockScreenSubmit()"
+                @keyup.enter.stop="onLockScreenSubmit()"
               >
                 <template #append>
                   <el-button @click="onLockScreenSubmit">

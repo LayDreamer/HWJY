@@ -35,7 +35,7 @@ export function useTitle() {
   const { themeConfig } = storeToRefs(stores)
   locale.value = themeConfig.value.globalI18n
   nextTick(() => {
-    let webTitle = ''
+    let webTitle
     let globalTitle: string = t(themeConfig.value.globalTitle)
     const { path, meta } = router.currentRoute.value
     if (path === '/login') {
@@ -117,7 +117,7 @@ export function deepClone(obj: EmptyObjectType) {
   let newObj: EmptyObjectType
   try {
     newObj = obj.push ? [] : {}
-  } catch (error) {
+  } catch {
     newObj = {}
   }
   for (let attr in obj) {

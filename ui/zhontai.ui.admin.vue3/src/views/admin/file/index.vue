@@ -89,7 +89,7 @@
 </template>
 
 <script lang="ts" setup name="admin/file">
-import { ref, reactive, onMounted, onBeforeMount, defineAsyncComponent, computed, getCurrentInstance } from 'vue'
+import { reactive, onMounted, onBeforeMount, defineAsyncComponent, computed, getCurrentInstance } from 'vue'
 import { PageInputFileGetPageInput, FileGetPageOutput } from '/@/api/admin/data-contracts'
 import { FileApi } from '/@/api/admin/File'
 import dayjs from 'dayjs'

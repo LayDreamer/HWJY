@@ -83,11 +83,6 @@ const open = (row: OperationLogGetPageOutput) => {
   state.details = row
 }
 
-// 取消
-const onCancel = () => {
-  state.showDialog = false
-}
-
 defineExpose({
   open,
 })

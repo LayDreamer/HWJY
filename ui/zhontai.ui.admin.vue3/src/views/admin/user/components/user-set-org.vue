@@ -62,7 +62,7 @@ import eventBus from '/@/utils/mitt'
 import { FormInstance } from 'element-plus'
 import { t } from '/@/i18n'
 
-const userIds = defineModel('userIds', { type: Array, default: [] })
+const userIds = defineModel('userIds', { type: Array, default: () => [] })
 
 defineProps({
   title: {
@@ -154,7 +154,7 @@ const onSure = () => {
     if (!valid) return
 
     state.sureLoading = true
-    let res = {} as any
+    let res: any
     res = await new UserApi()
       .batchSetOrg(
         {

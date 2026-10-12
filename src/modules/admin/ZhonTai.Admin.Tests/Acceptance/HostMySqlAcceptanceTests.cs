@@ -42,6 +42,8 @@ public sealed class HostMySqlAcceptanceTests
     private const string BusinessTable = "acc_host_business_record";
 
     [HostMySqlAcceptanceFact]
+    [Trait("P0Dependency", "MySql")]
+    [Trait("P0Gate", "Required")]
     public async Task FullHostRunsOnMySql8AndBusinessDataSurvivesRestart()
     {
         var mainConnection = Environment.GetEnvironmentVariable(MainConnectionVariable)!;

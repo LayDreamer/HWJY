@@ -44,7 +44,7 @@ onMounted(() => {
         try {
           const newValue = jsonEditor.value.get()
           json.value = typeof json.value === 'string' ? JSON.stringify(newValue, null, 2) : newValue
-        } catch (error) {}
+        } catch { /* Keep the current editor value while JSON is incomplete. */ }
       },
       mainMenuBar: true,
       statusBar: true,

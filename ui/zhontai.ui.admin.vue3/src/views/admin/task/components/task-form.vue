@@ -234,7 +234,7 @@ const onSure = () => {
     if (!valid) return
 
     state.sureLoading = true
-    let res = {} as any
+    let res: any
     if (state.form.id) {
       res = await new TaskApi().update(state.form, { showSuccessMessage: true }).catch(() => {
         state.sureLoading = false

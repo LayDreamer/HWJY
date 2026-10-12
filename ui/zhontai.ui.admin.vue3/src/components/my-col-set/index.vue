@@ -23,7 +23,7 @@
     </div>
     <el-scrollbar>
       <div ref="sortableRef" class="my-col-set-body-box">
-        <div v-for="(item, index) in colsModel" :key="item.attrs.prop" :data-id="item.attrs.prop" class="my-flex my-flex-between my-col-set-item-box">
+        <div v-for="item in colsModel" :key="item.attrs.prop" :data-id="item.attrs.prop" class="my-flex my-flex-between my-col-set-item-box">
           <div class="my-flex my-flex-fill">
             <el-button link class="handle">
               <template #icon>

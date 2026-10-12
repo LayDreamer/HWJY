@@ -1,6 +1,4 @@
 ﻿using Magicodes.ExporterAndImporter.Core.Models;
-using Magicodes.ExporterAndImporter.Excel;
-using Magicodes.ExporterAndImporter.Excel.AspNetCore;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Http;
 using System.Text;
@@ -39,10 +37,10 @@ public class IEHelper
     /// <param name="type"></param>
     /// <param name="fileName"></param>
     /// <returns></returns>
-    public async Task<ActionResult> DownloadTemplateAsync<T>(T type, string fileName) where T : class, new()
+    public Task<ActionResult> DownloadTemplateAsync<T>(T type, string fileName) where T : class, new()
     {
-        var result = await new ExcelImporter().GenerateTemplateBytes<T>();
-        return new XlsxFileResult(result, fileName);
+        var result = ExcelWorkbook.GenerateTemplate<T>();
+        return Task.FromResult<ActionResult>(XlsxFile(result, fileName));
     }
 
     /// <summary>
@@ -66,7 +64,7 @@ public class IEHelper
             fileName = _adminCoreLocalizer["错误标记文件{0}.xlsx", DateTime.Now.ToString("yyyyMMddHHmmss")];
         }
 
-        return new XlsxFileResult(fileStream, fileName);
+        return XlsxFile(fileStream, fileName);
     }
 
     /// <summary>
@@ -77,16 +75,16 @@ public class IEHelper
     /// <param name="sheetName"></param>
     /// <returns></returns>
     [HttpPost]
-    public async Task<ActionResult> ExportDataAsync<T>(ICollection<T> dataItems, string fileName = null, string sheetName = null) where T : class, new()
+    public Task<ActionResult> ExportDataAsync<T>(ICollection<T> dataItems, string fileName = null, string sheetName = null) where T : class, new()
     {
-        var result = await new ExcelExporter().Append(dataItems, sheetName).ExportAppendDataAsByteArray();
+        var result = ExcelWorkbook.Export(dataItems, sheetName);
 
         if (fileName.IsNull())
         {
             fileName = _adminCoreLocalizer["数据列表{0}.xlsx", DateTime.Now.ToString("yyyyMMddHHmmss")];
         }
 
-        return new XlsxFileResult(result, fileName);
+        return Task.FromResult<ActionResult>(XlsxFile(result, fileName));
     }
 
     /// <summary>
@@ -100,7 +98,8 @@ public class IEHelper
     [HttpPost]
     public async Task<ImportResult<T>> ImportDataAsync<T>(IFormFile file, string fileId, Func<ImportResult<T>, Task<ImportResult<T>>> importResultCallback = null) where T : class, new()
     {
-        var importResult = await new ExcelImporter().Import<T>(file.OpenReadStream());
+        using var input = file.OpenReadStream();
+        var importResult = ExcelWorkbook.Import<T>(input);
 
         if (importResultCallback != null)
         {
@@ -136,7 +135,8 @@ public class IEHelper
             }
 
             //缓存错误标记文件
-            new ExcelImporter().OutputBussinessErrorData<T>(file.OpenReadStream(), rowErros.ToList(), out byte[] fileByte);
+            using var errorInput = file.OpenReadStream();
+            var fileByte = ExcelWorkbook.MarkErrors(errorInput, rowErros);
             var userId = _user.Id;
             await _cache.DelAsync(CacheKeys.GetExcelErrorMarkKey(userId, fileId));
             await _cache.SetAsync(CacheKeys.GetExcelErrorMarkKey(userId, fileId), fileByte, TimeSpan.FromMinutes(20));
@@ -149,4 +149,7 @@ public class IEHelper
 
         return importResult;
     }
+
+    private static FileContentResult XlsxFile(byte[] bytes, string fileName) => new(bytes,
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") { FileDownloadName = fileName };
 }

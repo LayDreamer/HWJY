@@ -23,6 +23,7 @@ using ZhonTai.Admin.Services.User.Dto;
 
 namespace ZhonTai.Admin.Tests.Acceptance;
 
+[Trait("P0Gate", "Required")]
 public sealed class AdminCoreAdmissionTests
 {
     [Fact]
@@ -122,6 +123,7 @@ public sealed class AdminCoreAdmissionTests
     }
 
     [MySqlAdmissionFact]
+    [Trait("P0Dependency", "MySql")]
     [Trait("P0Gate", "Required")]
     public void MySql8ProviderSchemaAndTransactionAreAccepted()
     {

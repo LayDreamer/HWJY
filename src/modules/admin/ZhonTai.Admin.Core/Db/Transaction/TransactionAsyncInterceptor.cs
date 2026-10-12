@@ -12,7 +12,6 @@ namespace ZhonTai.Admin.Core.Db.Transaction;
 /// </summary>
 public class TransactionAsyncInterceptor : IAsyncInterceptor
 {
-    private IUnitOfWork _unitOfWork;
     private readonly UnitOfWorkManagerCloud _unitOfWorkManagerCloud;
     private readonly DbConfig _dbConfig;
 
@@ -22,7 +21,7 @@ public class TransactionAsyncInterceptor : IAsyncInterceptor
         _dbConfig = dbConfig;
     }
 
-    private bool TryBegin(IInvocation invocation)
+    private IUnitOfWork Begin(IInvocation invocation)
     {
         var method = invocation.MethodInvocationTarget ?? invocation.Method;
         var attribute = method.GetCustomAttributes(typeof(TransactionAttribute), false).FirstOrDefault();
@@ -34,45 +33,40 @@ public class TransactionAsyncInterceptor : IAsyncInterceptor
             {
                 dbKey = _dbConfig.Key;
             }
-            _unitOfWork = _unitOfWorkManagerCloud.Begin(dbKey, transaction.Propagation, isolationLevel);
-            return true;
+            return _unitOfWorkManagerCloud.Begin(dbKey, transaction.Propagation, isolationLevel);
         }
 
-        return false;
+        return null;
     }
 
-    private async Task InternalInterceptAsynchronous(IInvocation invocation)
+    private async Task InternalInterceptAsynchronous(IInvocation invocation, IUnitOfWork unitOfWork)
     {
-        //string methodName =
-        //    $"{invocation.MethodInvocationTarget.DeclaringType?.FullName}.{invocation.Method.Name}()";
-        //int? hashCode = _unitOfWork.GetHashCode();
-
-        invocation.Proceed();
-
         try
         {
+            invocation.Proceed();
             //处理Task返回一个null值的情况会导致空指针
             if (invocation.ReturnValue != null)
             {
                 await (Task)invocation.ReturnValue;
             }
-            _unitOfWork.Commit();
+            unitOfWork.Commit();
         }
         catch (System.Exception)
         {
-            _unitOfWork.Rollback();
+            unitOfWork.Rollback();
             throw;
         }
         finally
         {
-            _unitOfWork.Dispose();
+            unitOfWork.Dispose();
         }
     }
 
     private async Task<TResult> InternalInterceptAsynchronous<TResult>(IInvocation invocation)
     {
         TResult result;
-        if (TryBegin(invocation))
+        var unitOfWork = Begin(invocation);
+        if (unitOfWork != null)
         {
             try
             {
@@ -80,21 +74,21 @@ public class TransactionAsyncInterceptor : IAsyncInterceptor
                 result = await (Task<TResult>)invocation.ReturnValue;
                 if (result is IResultOutput res && !res.Success)
                 {
-                    _unitOfWork.Rollback();
+                    unitOfWork.Rollback();
                 }
                 else
                 {
-                    _unitOfWork.Commit();
+                    unitOfWork.Commit();
                 }
             }
             catch (System.Exception)
             {
-                _unitOfWork.Rollback();
+                unitOfWork.Rollback();
                 throw;
             }
             finally
             {
-                _unitOfWork.Dispose();
+                unitOfWork.Dispose();
             }
         }
         else
@@ -111,7 +105,8 @@ public class TransactionAsyncInterceptor : IAsyncInterceptor
     /// <param name="invocation"></param>
     public void InterceptSynchronous(IInvocation invocation)
     {
-        if (TryBegin(invocation))
+        var unitOfWork = Begin(invocation);
+        if (unitOfWork != null)
         {
             try
             {
@@ -119,21 +114,21 @@ public class TransactionAsyncInterceptor : IAsyncInterceptor
                 var result = invocation.ReturnValue;
                 if (result is IResultOutput res && !res.Success)
                 {
-                    _unitOfWork.Rollback();
+                    unitOfWork.Rollback();
                 }
                 else
                 {
-                    _unitOfWork.Commit();
+                    unitOfWork.Commit();
                 }
             }
             catch
             {
-                _unitOfWork.Rollback();
+                unitOfWork.Rollback();
                 throw;
             }
             finally
             {
-                _unitOfWork.Dispose();
+                unitOfWork.Dispose();
             }
         }
         else
@@ -148,9 +143,10 @@ public class TransactionAsyncInterceptor : IAsyncInterceptor
     /// <param name="invocation"></param>
     public void InterceptAsynchronous(IInvocation invocation)
     {
-        if (TryBegin(invocation))
+        var unitOfWork = Begin(invocation);
+        if (unitOfWork != null)
         {
-            invocation.ReturnValue = InternalInterceptAsynchronous(invocation);
+            invocation.ReturnValue = InternalInterceptAsynchronous(invocation, unitOfWork);
         }
         else
         {

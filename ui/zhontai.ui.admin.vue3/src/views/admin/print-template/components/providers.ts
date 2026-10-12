@@ -31,7 +31,7 @@ const comProvider = () => {
           title: t('表格'),
           type: 'table',
           groupFields: ['name'],
-          groupFooterFormatter: (group: any, option: any) => '', //'这里自定义统计脚信息',
+          groupFooterFormatter: (_group: any, _option: any) => '', //'这里自定义统计脚信息',
           options: {
             width: 500,
           },
@@ -106,7 +106,7 @@ const comProvider = () => {
         {
           tid: `${COM_MODULE}.html`,
           title: 'html',
-          formatter: function (data: any, options: any) {
+          formatter: function (_data: any, _options: any) {
             return '<div style="height:50pt;width:50pt;background:red;border-radius: 50%;"></div>'
           },
           type: 'html',

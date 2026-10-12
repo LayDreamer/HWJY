@@ -155,7 +155,7 @@ const onSave = async (close = true) => {
         proxy.$modal.msgWarning(t('请选择打印模板'))
       }
     }
-  } catch (error) {}
+  } catch { /* Keep the dialog open when saving fails. */ }
 }
 
 // 打开对话框

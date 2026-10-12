@@ -8,7 +8,7 @@
     :close-on-press-escape="false"
     width="780px"
   >
-    <template #header="{ close, titleId, titleClass }">
+    <template #header="{ titleId, titleClass }">
       <div class="my-header">
         <div :id="titleId" :class="titleClass">
           {{ innerTitle }}

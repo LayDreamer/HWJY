@@ -128,7 +128,7 @@ const onQuery = async () => {
     const label = state.filter.label || ''
     state.viewTreeData = markRaw(
       filterTree(listToTree(cloneDeep(res.data)), '', {
-        filterWhere: (item: any, keyword: string) => {
+        filterWhere: (item: any, _keyword: string) => {
           return item.label?.toLocaleLowerCase().indexOf(label) > -1 || item.path?.toLocaleLowerCase().indexOf(label) > -1
         },
       })

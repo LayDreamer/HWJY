@@ -48,6 +48,8 @@ public sealed class P0DataPermissionAcceptanceTests
     private const string ApiPrefix = "/api/admin/p0-data-permission-fixture";
 
     [P0DataPermissionAcceptanceFact]
+    [Trait("P0Dependency", "MySql")]
+    [Trait("P0Gate", "Required")]
     public async Task DP01_to_DP06_RealJwtRbacAndOrgDataPermissionAreEnforced()
     {
         var mainConnection = Environment.GetEnvironmentVariable(MainConnectionVariable)!;
@@ -172,7 +174,8 @@ public sealed class P0DataPermissionAcceptanceTests
     }
 
     [P0T5AcceptanceFact]
-    [Trait("P0Gate", "Remaining")]
+    [Trait("P0Dependency", "MySql")]
+    [Trait("P0Gate", "Required")]
     public async Task LOG01_to_LOG08_RealHttpTraceErrorsAndStructuredLogsAreEnforced()
     {
         var connection = Environment.GetEnvironmentVariable("ADMINCORE_T4_MYSQL")!;

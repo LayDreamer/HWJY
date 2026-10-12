@@ -1,7 +1,5 @@
 ﻿using Magicodes.ExporterAndImporter.Core;
-using Magicodes.ExporterAndImporter.Excel;
 using Magicodes.IE.Core;
-using OfficeOpenXml.Table;
 using System.Reflection;
 
 namespace ZhonTai.Admin.Services.Dict.Dto;
@@ -23,7 +21,7 @@ public class BoolValueMappingAttribute : ValueMappingsBaseAttribute
     }
 }
 
-[ExcelExporter(Name = "字典列表")]
+[Exporter(Name = "字典列表")]
 public class DictExportHeader
 {
     [ExporterHeader(DisplayName = "字典分类", ColumnIndex = 3)]
@@ -54,7 +52,7 @@ public class DictExportHeader
     public string Description { get; set; }
 }
 
-[ExcelExporter(Name = "字典列表", TableStyle = TableStyles.Light9, AutoFitAllColumn = true, AutoFitMaxRows = 5000)]
+[Exporter(Name = "字典列表", AutoFitAllColumn = true, AutoFitMaxRows = 5000)]
 public class DictExport: DictExportHeader
 {
     [ExporterHeader(DisplayName = "字典编号", Format = "0", ColumnIndex = 1)]

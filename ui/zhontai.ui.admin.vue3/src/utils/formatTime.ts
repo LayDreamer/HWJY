@@ -90,13 +90,13 @@ export function getWeek(dateTime: Date): number {
  */
 export function formatPast(param: string | Date, format: string = 'YYYY-mm-dd'): string {
   // 传入格式处理、存储转换值
-  let t: any, s: number
+  let s: number
   // 获取js 时间戳
   let time: number = new Date().getTime()
   // 是否是对象
-  typeof param === 'string' || 'object' ? (t = new Date(param).getTime()) : (t = param)
+  const timestamp = typeof param === 'string' ? new Date(param).getTime() : param.getTime()
   // 当前时间戳 - 传入时间戳
-  time = Number.parseInt(`${time - t}`)
+  time = Number.parseInt(`${time - timestamp}`)
   if (time < 10000) {
     // 10秒内
     return '刚刚'
@@ -130,7 +130,7 @@ export function formatPast(param: string | Date, format: string = 'YYYY-mm-dd'):
     return t('{s}年前', { s: s })
   } else {
     // 超过3天
-    let date = typeof param === 'string' || 'object' ? new Date(param) : param
+    let date = typeof param === 'string' ? new Date(param) : param
     return formatDate(date, format)
   }
 }

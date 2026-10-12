@@ -53,6 +53,7 @@ using ZhonTai.Admin.Core.Extensions;
 using ZhonTai.Admin.Core.Filters;
 using ZhonTai.Admin.Core.GrpcServices;
 using ZhonTai.Admin.Core.Handlers;
+using ZhonTai.Admin.Core.Health;
 using ZhonTai.Admin.Core.Helpers;
 using ZhonTai.Admin.Core.Middlewares;
 using ZhonTai.Admin.Core.RegisterModules;
@@ -302,7 +303,7 @@ public class HostApp
         _hostAppOptions?.ConfigurePreServices?.Invoke(hostAppContext);
 
         //健康检查
-        services.AddHealthChecks();
+        services.AddDependencyHealthChecks(AppInfo.GetOptions<DbConfig>(), AppInfo.GetOptions<CacheConfig>());
 
         var cacheConfig = AppInfo.GetOptions<CacheConfig>();
 
@@ -980,14 +981,7 @@ public class HostApp
         #endregion Swagger Api文档
 
         //使用健康检查
-        if (appConfig.HealthChecks.Enable)
-        {
-            app.MapHealthChecks(appConfig.HealthChecks.Path, new HealthCheckOptions()
-            {
-                Predicate = _ => true,
-                ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
-            });
-        }
+        app.MapDependencyHealthChecks(appConfig.HealthChecks);
 
         //内置任务调度管理界面
         if (appConfig.TaskSchedulerUI.Enable)
