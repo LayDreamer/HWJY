@@ -53,6 +53,8 @@
 		<PackageReference Include="Refit.HttpClientFactory" Version="11.2.0" />
 		<PackageReference Include="Magicodes.IE.Core" Version="2.8.4" />
 		<PackageReference Include="ClosedXML" Version="0.105.1" />
+		<!-- Override BceSdkDotNetCore's vulnerable transitive log4net 2.0.8. -->
+		<PackageReference Include="log4net" Version="2.0.17" />
 		<PackageReference Include="MailKit" Version="4.17.0" />
 		<PackageReference Include="Mapster" Version="10.0.8" />
 		<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.9" />

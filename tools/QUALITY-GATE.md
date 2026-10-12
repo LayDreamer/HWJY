@@ -58,4 +58,6 @@ pwsh -NoProfile -File tools/run-quality-gate.ps1 -Mode Local
 
 安全版本固定在后端 Core 的 PackageReference 和前端 `pnpm-workspace.yaml` 的定向 overrides 中。旧 SVG 插件依赖无修复版本的 braces 与旧解析器，已替换为本仓库的 SVGO 图标构建入口，保留 `virtual:svg-icons-register`、`icon-*` 名称与嵌套目录命名。升级后的 jsPDF 由打印组件真实解析路径测试其图片、分页和 PDF 输出 API。
 
+Core 直接固定 `log4net` 2.0.17，覆盖对象存储依赖 `BceSdkDotNetCore` 引入的 2.0.8，修复其严重 XML 外部实体漏洞并保持 2.x 兼容。此版本仍有中危 XML 日志事件丢失公告；与前端中危结果一同保留，按本次高危/严重修复范围不忽略、不宣称全部漏洞清零。
+
 Excel 引擎采用 MIT 许可的 ClosedXML 0.105.1，移除 Magicodes.IE.Excel/EPPlus 与 ImageSharp，不需要 Six Labors 图片许可证。保留 Magicodes.IE.Core 的列注解、导入结果和业务错误回调；字典 DTO 改用其通用 Importer/Exporter 注解。`ExcelWorkbook` 覆盖当前仓库使用的模板、中文布尔映射、必填/类型/重复校验、错误注释、导出列顺序、Light9 样式、日期格式和内嵌图片，`IEHelper` 保留下载文件名、XLSX MIME、缓存期限和回调契约。此适配不宣称实现原 Magicodes Excel 的所有高级扩展功能；新增导入导出场景应补充对应回归。
