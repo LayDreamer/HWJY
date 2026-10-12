@@ -3,6 +3,10 @@
 ###############################################################################
 * text=auto
 
+# Migration manifests hash exact SQL bytes. Preserve approved artifacts on checkout
+# and commit, including existing mixed line endings; never normalize these files.
+/database/mysql/**/*.sql -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+
 ###############################################################################
 # Set default behavior for command prompt diff.
 #

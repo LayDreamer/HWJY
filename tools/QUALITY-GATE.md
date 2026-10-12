@@ -29,6 +29,8 @@ pwsh -NoProfile -File tools/run-quality-gate.ps1 -Mode Local
 
 缺少配置时完整 Gate 退出码为 `2`；构建、检查、测试或报告验证失败为 `1`；通过为 `0`。TRX 必须有执行结果、全部通过且无跳过；缺少指定套件、组织权限验收或日志验收也会失败。验收标签覆盖测试会发现新测试未纳入 Gate 的情况。
 
+迁移清单校验 SQL 文件的原始字节。`.gitattributes` 对 `database/mysql/**/*.sql` 禁用换行转换，保留已批准制品的字节与校验和；编辑器也不得自动转换这些文件的换行。Windows 的 `core.autocrlf` 不应改变迁移制品，清单及数据库迁移历史中的校验和保持一致。
+
 `Local` 显式排除 `P0Dependency=MySql` 的验收。旧 Material 冒烟夹具和使用机器默认 Host 配置的旧 `SchedulerIsolationTest` 不属于此 Gate；调度持久化和 API/Worker 隔离分别由隔离 SQLite 准入测试与 T4 Host 验收覆盖。
 
 ## 模块与运行时依赖检查
