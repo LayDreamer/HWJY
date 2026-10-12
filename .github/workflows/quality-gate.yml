@@ -34,8 +34,6 @@ jobs:
           node-version: '24'
           cache: pnpm
           cache-dependency-path: ui/zhontai.ui.admin.vue3/pnpm-lock.yaml
-      - name: Start isolated Windows MySQL
-        run: ./tools/ci-mysql.ps1 -Action Start
       - name: Restore backend
         run: dotnet restore src/ZhonTai.sln --disable-parallel
       - name: Install locked frontend dependencies
@@ -43,7 +41,15 @@ jobs:
         run: pnpm install --frozen-lockfile --registry=https://registry.npmjs.org
       - name: Run full quality gate
         shell: pwsh
-        run: ./tools/run-quality-gate.ps1 -Mode Full -NoRestore
+        run: |
+          try {
+            ./tools/ci-mysql.ps1 -Action Start
+            # Keep MySQL's Windows parent alive until the child Gate completes.
+            & pwsh -NoProfile -File ./tools/run-quality-gate.ps1 -Mode Full -NoRestore
+            if ($LASTEXITCODE -ne 0) { throw 'Full quality gate failed.' }
+          } finally {
+            ./tools/ci-mysql.ps1 -Action Stop
+          }
       - name: Audit high and critical dependencies
         run: ./tools/run-dependency-audit.ps1
       - name: Stop isolated Windows MySQL

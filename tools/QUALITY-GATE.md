@@ -46,7 +46,7 @@ pwsh -NoProfile -File tools/run-quality-gate.ps1 -Mode Local
 
 ## CI
 
-`.github/workflows/quality-gate.yml` 在 PR、主分支推送和手动触发时，在 `windows-latest` 运行同一完整入口。`tools/ci-mysql.ps1` 从官方 CDN 下载 MySQL 8.4.11 Windows ZIP，在 runner 临时目录初始化独立实例、绑定本机端口 33306 并创建四个验收库。随机密码仅用于本次实例，经过 GitHub 日志遮罩后传入后续步骤；始终停止本次启动的进程。此流程不注册系统服务、不连接开发者现有数据库。使用锁文件安装前端依赖，保留检查日志/TRX/MySQL 启动日志 14 天以及通过检查的前端构建产物 7 天。
+`.github/workflows/quality-gate.yml` 在 PR、主分支推送和手动触发时，在 `windows-latest` 运行同一完整入口。`tools/ci-mysql.ps1` 从官方 CDN 下载 MySQL 8.4.11 Windows ZIP，在 runner 临时目录初始化独立实例、绑定本机端口 33306 并创建四个验收库。数据库启动、子进程 Gate 和 `finally` 清理位于同一 PowerShell 步骤，保持 Windows 父进程存活，避免跨步骤丢失数据库进程；另有 `always()` 清理步骤兜底。随机密码仅用于本次实例，经过 GitHub 日志遮罩后传入验收；始终停止本次启动的进程。此流程不注册系统服务、不连接开发者现有数据库。使用锁文件安装前端依赖，保留检查日志/TRX/MySQL 启动日志 14 天以及通过检查的前端构建产物 7 天。
 
 若要强制阻止不合格 PR 合并，仓库管理员需在 GitHub 分支保护中将 **Full Quality Gate** 设为必需检查；仅添加 workflow 不会自动启用分支保护。
 
