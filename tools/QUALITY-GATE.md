@@ -96,6 +96,18 @@ pwsh -NoProfile -File tools/test-mysql-isolation.ps1 -MySqlBinaryDirectory 'D:/t
 
 若要强制阻止不合格 PR 合并，仓库管理员需在 GitHub 分支保护中将 **Full Quality Gate** 设为必需检查；仅添加 workflow 不会自动启用分支保护。
 
+### NuGet 缓存与 PR 收尾
+
+Full 模式使用 `actions/cache` 缓存 `~/.nuget/packages` 下载包，缓存键包含操作系统、架构和项目/依赖配置文件的内容哈希；依赖变化时可从同平台旧缓存补充恢复。命中缓存后仍执行 `dotnet restore`、完整验收和依赖审计，不缓存配置凭据、数据库、测试结果或构建产物。`docs` 和 `reuse` 模式不恢复或保存 NuGet 缓存。
+
+MySQL 清理在核实所属进程退出且 33306 无监听后，将活动证明 `process.json` 归档为 `process.stopped.json`；重复 Stop 不再读取已完成证明中的旧 PID，避免 PID 被其他进程复用时误报失败。活动实例仍严格校验端口、数据目录、可执行文件和进程启动时间，校验或清理失败时保留活动证明并报错。
+
+GitHub 的 PR 缓存作用域不能供其他 PR 直接复用。首次启用后，在默认分支通过现有 `workflow_dispatch` 手动执行一次 Full，建立后续 PR 可读取的默认分支缓存；之后默认分支实际执行 Full 时会按需更新缓存。缓存未命中或被淘汰时按正常恢复流程下载依赖。
+
+仓库设置启用 **Allow auto-merge** 和 **Automatically delete head branches**。只有已完成审查、获准合并的 PR 才单独启用自动合并，选择普通 **Merge**，待现有分支保护要求全部满足后合并；仓库允许自动合并并不等于所有 PR 都会自动合并，也不绕过 **Full Quality Gate**。普通合并继续按上述严格条件复用已验证文件树。
+
+合并后由 GitHub 自动清理源分支。本地同步先保留未提交改动，再获取远端更新并快进 `main`；确认已合并且没有额外提交或其他工作树占用后，使用 `git branch -d <分支名>` 清理本地分支。未合并分支继续保留。
+
 ## 依赖漏洞审计
 
 恢复依赖后运行 `pwsh -NoProfile -File tools/run-dependency-audit.ps1`。脚本向官方 NuGet/npm 源查询直接及传递依赖，报告写入 `artifacts/quality/nuget-audit.json` 和 `npm-audit.json`。高危、严重漏洞或无法获得完整报告均阻断；中低危结果保留在报告中。Windows CI 同样执行该步骤，不使用漏洞忽略清单。

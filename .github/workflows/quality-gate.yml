@@ -50,6 +50,14 @@ jobs:
           node-version: '24'
           cache: pnpm
           cache-dependency-path: ui/zhontai.ui.admin.vue3/pnpm-lock.yaml
+      - name: Cache NuGet packages
+        if: steps.plan.outputs.mode == 'full'
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-${{ runner.arch }}-nuget-v1-${{ hashFiles('src/**/*.csproj', 'src/**/*.props', 'src/**/*.targets', '**/packages.lock.json', '**/NuGet.Config', '**/nuget.config', 'global.json') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-nuget-v1-
       - name: Restore backend
         if: steps.plan.outputs.mode == 'full'
         run: dotnet restore src/ZhonTai.sln --disable-parallel

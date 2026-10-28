@@ -43,6 +43,8 @@ if ($Action -eq 'Stop') {
     if ([Net.NetworkInformation.IPGlobalProperties]::GetIPGlobalProperties().GetActiveTcpListeners() | Where-Object Port -eq 33306) {
         throw 'Port 33306 is still listening after owned process cleanup; no other process will be stopped.'
     }
+    # Retire active ownership proof only after cleanup succeeds; old PIDs may be reused.
+    Move-Item -LiteralPath $statePath -Destination (Join-Path $root 'process.stopped.json')
     Write-Host 'Owned 33306 acceptance MySQL stopped.'
     return
 }
