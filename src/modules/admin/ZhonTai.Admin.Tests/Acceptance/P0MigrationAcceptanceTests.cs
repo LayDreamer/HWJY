@@ -136,7 +136,7 @@ public sealed class P0MigrationAcceptanceTests
 
     private static string RequireT4Connection()
     {
-        var connection = Environment.GetEnvironmentVariable("ADMINCORE_T4_MYSQL");
+        var connection = P0MySqlAcceptanceEnvironment.RequireConnection("ADMINCORE_T4_MYSQL");
         Assert.False(string.IsNullOrWhiteSpace(connection), "Set ADMINCORE_T4_MYSQL to the dedicated T4 acceptance schema.");
         Assert.Equal(T4Schema, new MySqlConnectionStringBuilder(connection).Database);
         return connection!;

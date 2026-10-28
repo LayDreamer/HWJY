@@ -18,16 +18,46 @@ pwsh -NoProfile -File tools/run-quality-gate.ps1 -Mode Local
 
 ## 完整验收依赖
 
-以下环境变量必须分别指向可写的隔离 MySQL 8 验收库。测试会创建结构、初始化数据，并执行迁移、回滚和隔离验证，不应使用业务数据库。
+### 自动化验收连接
 
-| 环境变量 | 用途 |
+`Full` 入口现在自动创建和管理 **`127.0.0.1:33306` 的独立 MySQL 8 实例**。本地和 CI 使用相同入口，不再手工提供验收连接串。每次从全新数据目录初始化四个库，测试会创建结构、初始化种子并执行迁移、回滚和隔离验证；不从 3306 复制业务数据，也不复用其历史验收库。
+
+| 启动器生成的进程环境变量 | 33306 上的库及用途 |
 | --- | --- |
-| `ADMINCORE_T4_MYSQL` | T2/T4、迁移与 DP/LOG 验收；库名必须为 `admincore_p0_t4_acceptance`，测试会检查目标库名 |
-| `ADMINCORE_HOST_MYSQL` | 完整 Host 主库 |
-| `ADMINCORE_HOST_MYSQL_LOG` | 完整 Host 与 DP/LOG 日志库 |
-| `ADMINCORE_ACCEPTANCE_MYSQL` | 基座 MySQL 准入验收 |
+| `ADMINCORE_T4_MYSQL` | `admincore_p0_t4_acceptance`：T2/T4、迁移及 LOG 验收 |
+| `ADMINCORE_HOST_MYSQL` | `admincore_host`：完整 Host 主库及 DP 验收 |
+| `ADMINCORE_HOST_MYSQL_LOG` | `admincore_log`：完整 Host 与 DP 日志库 |
+| `ADMINCORE_ACCEPTANCE_MYSQL` | `admincore_acceptance`：基座 MySQL 准入验收 |
 
-缺少配置时完整 Gate 退出码为 `2`；构建、检查、测试或报告验证失败为 `1`；通过为 `0`。TRX 必须有执行结果、全部通过且无跳过；缺少指定套件、组织权限验收或日志验收也会失败。验收标签覆盖测试会发现新测试未纳入 Gate 的情况。
+验收实例与本机可能已有的 3306 实例使用不同的进程和数据目录；相同 schema 名称不表示同一个数据库。库的归属必须结合地址、端口、实例 UUID 和数据目录判断，不能只看库名。
+
+```powershell
+# 单独运行完整后端验收，自动启动和停止 33306
+pwsh -NoProfile -File tools/run-p0-gate.ps1 -Mode Full -NoRestore
+
+# 可指定已有的 MySQL 二进制目录，无需安装 Windows 服务
+pwsh -NoProfile -File tools/run-p0-gate.ps1 -Mode Full -NoRestore -MySqlBinaryDirectory 'D:/tools/mysql/mysql-8.4.11-winx64/bin'
+```
+
+`run-quality-gate.ps1 -Mode Full` 同样自动管理实例。二进制优先取自 `-MySqlBinaryDirectory`，其次取自进程变量 `ADMINCORE_MYSQL_BIN`；均未设置时从官方 CDN 下载固定的 8.4.11 ZIP。显式指定无效目录时直接报错。默认工作目录为 `RUNNER_TEMP` 或系统临时目录下的新 GUID 目录；可用 `-MySqlWorkingDirectory` 指定**尚不存在**的目录，推荐使用不含中文的路径。
+
+防误连检查在启动器和测试入口两层执行：
+
+1. 启动脚本端口只接受 33306；若端口已被占用或工作目录已存在，立即拒绝，不复用现有数据库。初始化后、首次修改账号或建库前，核对服务端真实端口和本次数据目录，并记录实例 UUID。
+2. 验收仅使用随机密码的 `admincore_acceptance` 专用账号，授权严格限定四个 schema，无全局数据权限、无授权转授权限；连接必须使用 TCP、`127.0.0.1:33306` 和 `SslMode=Required`。
+3. 每个 MySQL 验收入口及共用清理入口在打开连接前校验地址、端口、账号、库白名单及连接角色；3306 在连接前直接拒绝。打开连接后只读核对 `@@port`、`@@server_uuid`、`@@datadir`，与本轮证明不符则拒绝测试写入。不能通过端口转发把 3306 冒充成验收实例。
+4. 启动器清除继承的四个验收连接、日常 `DbConfig__*` 主/日志连接、ConfigCenter 路径和宿主环境变量，再注入本轮配置；Host 验收也明确使用自己的 ConfigCenter。环境变量仅在子进程有效，结束后恢复，不写入用户/系统环境变量或源码。
+5. `finally` 根据本轮状态中的 PID、可执行文件和进程启动时间停止实例；不会按端口或进程名停止其他 MySQL。失败时也执行该清理。数据目录和日志保留用于排查，下轮使用新目录，不复用旧数据。
+
+恢复后端依赖后，可执行独立的生命周期回归（需提供已安装的 MySQL 8.4 二进制目录）：
+
+```powershell
+pwsh -NoProfile -File tools/test-mysql-isolation.ps1 -MySqlBinaryDirectory 'D:/tools/mysql/mysql-8.4.11-winx64/bin'
+```
+
+该回归覆盖危险端口、占用端口、已有目录、实例身份、成功及失败清理、未设置与空值环境变量恢复，以及继承错误 3306 配置时的完整后端验收。结束后核对原有 MySQL 监听和进程身份未变；不会认证或查询日常数据库。验证结果和日志写入新的临时证据目录，可用 `-EvidenceDirectory` 指定尚不存在的目录。
+
+`-ManagedMySql` 是启动器内部参数，要求连接及实例证明齐全；直接调用该内部入口缺少配置时退出码为 `2`。实例启动、构建、测试或报告验证失败为 `1`，通过为 `0`。TRX 必须有执行结果、全部通过且无跳过；缺少防误连套件、组织权限验收或日志验收也会失败。验收标签覆盖测试会发现新测试未纳入 Gate 的情况。单独 `dotnet test` 不能通过自行设置一个库名绕过实例检查，完整验收应使用上述入口。
 
 迁移清单校验 SQL 文件的原始字节。`.gitattributes` 对 `database/mysql/**/*.sql` 禁用换行转换，保留已批准制品的字节与校验和；编辑器也不得自动转换这些文件的换行。Windows 的 `core.autocrlf` 不应改变迁移制品，清单及数据库迁移历史中的校验和保持一致。
 
@@ -48,7 +78,7 @@ pwsh -NoProfile -File tools/run-quality-gate.ps1 -Mode Local
 
 ## CI
 
-`.github/workflows/quality-gate.yml` 在 PR、主分支推送和手动触发时，在 `windows-latest` 运行同一完整入口。`tools/ci-mysql.ps1` 从官方 CDN 下载 MySQL 8.4.11 Windows ZIP，在 runner 临时目录初始化独立实例、绑定本机端口 33306 并创建四个验收库。数据库启动、子进程 Gate 和 `finally` 清理位于同一 PowerShell 步骤，保持 Windows 父进程存活，避免跨步骤丢失数据库进程；另有 `always()` 清理步骤兜底。随机密码仅用于本次实例，经过 GitHub 日志遮罩后传入验收；始终停止本次启动的进程。此流程不注册系统服务、不连接开发者现有数据库。使用锁文件安装前端依赖，保留检查日志/TRX/MySQL 启动日志 14 天以及通过检查的前端构建产物 7 天。
+`.github/workflows/quality-gate.yml` 在 PR、主分支推送和手动触发时，在 `windows-latest` 运行同一完整入口。工作流调用 `run-quality-gate.ps1 -Mode Full`，由 `run-mysql-acceptance.ps1` 在 runner 临时目录初始化上述独立实例；不再由工作流另行注入数据库连接。数据库启动、子进程 Gate 和 `finally` 清理位于同一 PowerShell 生命周期，保持 Windows 父进程存活，避免跨步骤丢失数据库进程；另有 `always()` 按同一状态目录清理兜底。随机密码仅用于本次实例，经过 GitHub 日志遮罩后传入验收；始终停止本次启动的进程。此流程不注册系统服务、不连接开发者现有数据库。使用锁文件安装前端依赖，保留检查日志/TRX/MySQL 启动日志 14 天以及通过检查的前端构建产物 7 天。
 
 若要强制阻止不合格 PR 合并，仓库管理员需在 GitHub 分支保护中将 **Full Quality Gate** 设为必需检查；仅添加 workflow 不会自动启用分支保护。
 

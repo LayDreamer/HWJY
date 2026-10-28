@@ -52,14 +52,16 @@ public sealed class P0DataPermissionAcceptanceTests
     [Trait("P0Gate", "Required")]
     public async Task DP01_to_DP06_RealJwtRbacAndOrgDataPermissionAreEnforced()
     {
-        var mainConnection = Environment.GetEnvironmentVariable(MainConnectionVariable)!;
-        var logConnection = Environment.GetEnvironmentVariable(LogConnectionVariable)!;
+        var mainConnection = P0MySqlAcceptanceEnvironment.RequireConnection(MainConnectionVariable);
+        var logConnection = P0MySqlAcceptanceEnvironment.RequireConnection(LogConnectionVariable);
+        var suffix = Guid.NewGuid().ToString("N")[..12];
+        using var cleanup = AcceptanceFixtureCleanup.ForMySql(mainConnection);
+        cleanup.Register(db => CleanupP0Fixtures(db, suffix));
         WriteHostConfigs(mainConnection, logConnection);
 
         using var app = CreateHost();
         var cloud = app.Services.GetRequiredService<FreeSqlCloud>();
         var db = cloud.Use(DbKeys.AdminDb);
-        var suffix = Guid.NewGuid().ToString("N")[..12];
 
         // 真实 Host 启动后，技术 API 的路由、实体表和权限关联均在隔离库可见。
         Assert.Equal(1, db.Ado.QuerySingle<int>(
@@ -178,13 +180,14 @@ public sealed class P0DataPermissionAcceptanceTests
     [Trait("P0Gate", "Required")]
     public async Task LOG01_to_LOG08_RealHttpTraceErrorsAndStructuredLogsAreEnforced()
     {
-        var connection = Environment.GetEnvironmentVariable("ADMINCORE_T4_MYSQL")!;
+        var connection = P0MySqlAcceptanceEnvironment.RequireConnection("ADMINCORE_T4_MYSQL");
+        var suffix = Guid.NewGuid().ToString("N")[..12];
+        using var cleanup = AcceptanceFixtureCleanup.ForMySql(connection);
+        cleanup.Register(db => CleanupP0Fixtures(db, suffix));
         WriteHostConfigs(connection, connection);
         var logs = new P0TestLoggerProvider();
         using var app = CreateHost(logs);
         var db = app.Services.GetRequiredService<FreeSqlCloud>().Use(DbKeys.AdminDb);
-        CleanupP0Fixtures(db, dropFixtureTable: false);
-        var suffix = Guid.NewGuid().ToString("N")[..12];
         var access = await SeedAccessAsync(db, suffix);
 
         using (var platformProbe = app.CreateClient())
@@ -262,29 +265,61 @@ public sealed class P0DataPermissionAcceptanceTests
         Assert.NotEqual("invalid trace id!", generated);
         Assert.Matches("^[A-Za-z0-9]{1,128}$", generated);
 
-        CleanupP0Fixtures(db, dropFixtureTable: true);
     }
 
-    private static void CleanupP0Fixtures(IFreeSql db, bool dropFixtureTable)
+    internal static void CleanupP0Fixtures(IFreeSql db, string suffix)
     {
-        db.Ado.ExecuteNonQuery("delete from base_role_permission where RoleId in (select Id from base_role where Code like 'P0-DP-%') or PermissionId in (select Id from base_permission where Code like 'P0.DataPermission.%')");
-        db.Ado.ExecuteNonQuery("delete from base_permission_api where PermissionId in (select Id from base_permission where Code like 'P0.DataPermission.%') or ApiId in (select Id from base_api where Path like '/api/admin/p0-data-permission-fixture/%')");
-        db.Ado.ExecuteNonQuery("delete from base_user_role where UserId in (select Id from base_user where UserName like 'p0-dp-%') or RoleId in (select Id from base_role where Code like 'P0-DP-%')");
-        db.Ado.ExecuteNonQuery("delete from base_user_org where UserId in (select Id from base_user where UserName like 'p0-dp-%')");
-        db.Ado.ExecuteNonQuery("delete from base_role_org where RoleId in (select Id from base_role where Code like 'P0-DP-%')");
-        db.Ado.ExecuteNonQuery("delete from base_user where UserName like 'p0-dp-%'");
-        db.Ado.ExecuteNonQuery("delete from base_role where Code like 'P0-DP-%'");
-        db.Ado.ExecuteNonQuery("delete from base_permission where Code like 'P0.DataPermission.%'");
-        db.Ado.ExecuteNonQuery("delete from base_api where Path like '/api/admin/p0-data-permission-fixture/%'");
-        if (dropFixtureTable)
+        if (string.IsNullOrEmpty(suffix) || suffix.Any(character => !char.IsAsciiLetterOrDigit(character)))
+            throw new ArgumentException("A literal acceptance run suffix is required.", nameof(suffix));
+        // Host initialization may fail before creating the framework tables. Seeding cannot have begun then.
+        if (new[] { "base_user", "base_role", "base_org", "base_permission" }.Any(table => !db.DbFirst.ExistsTable(table)))
+            return;
+        var parameters = new
         {
-            db.Ado.ExecuteNonQuery("drop table if exists acc_p0_data_permission_fixture");
-            Assert.Equal(0, db.Ado.QuerySingle<int>("select count(*) from base_user where UserName like 'p0-dp-%'"));
-            Assert.Equal(0, db.Ado.QuerySingle<int>("select count(*) from base_role where Code like 'P0-DP-%'"));
-            Assert.Equal(0, db.Ado.QuerySingle<int>("select count(*) from base_permission where Code like 'P0.DataPermission.%'"));
-            Assert.Equal(0, db.Ado.QuerySingle<int>("select count(*) from base_api where Path like '/api/admin/p0-data-permission-fixture/%'"));
-            Assert.Equal(0, db.Ado.QuerySingle<int>("select count(*) from information_schema.tables where table_schema = database() and table_name = 'acc_p0_data_permission_fixture'"));
+            userPattern = "p0-dp-%-" + suffix,
+            rolePattern = "P0-DP-%-" + suffix,
+            permissionPattern = "P0.DataPermission.%." + suffix
+        };
+        var users = db.Ado.Query<long>("select Id from base_user where UserName like @userPattern", parameters);
+        var roles = db.Ado.Query<long>("select Id from base_role where Code like @rolePattern", parameters);
+        var orgs = db.Ado.Query<long>("select Id from base_org where Code like @rolePattern", parameters);
+        var permissions = db.Ado.Query<long>("select Id from base_permission where Code like @permissionPattern", parameters);
+        static string In(string column, List<long> ids) => ids.Count == 0 ? "1=0" : $"{column} in ({string.Join(',', ids)})";
+        void Delete(string table, string predicate)
+        {
+            if (db.DbFirst.ExistsTable(table)) db.Ado.ExecuteNonQuery($"delete from `{table}` where {predicate}");
         }
+        void Protect(string table, string predicate)
+        {
+            if (db.DbFirst.ExistsTable(table) && db.Ado.QuerySingle<int>($"select count(*) from `{table}` where {predicate}") > 0)
+                throw new InvalidOperationException($"Normal records in {table} reference this acceptance run; cleanup refused.");
+        }
+        db.Ado.Transaction(() =>
+        {
+            Protect("base_user", $"not ({In("Id", users)}) and ({In("OrgId", orgs)} or {In("ManagerUserId", users)})");
+            Protect("base_tenant", In("UserId", users) + " or " + In("OrgId", orgs));
+            Protect("base_org", $"not ({In("Id", orgs)}) and ({In("ParentId", orgs)})");
+            Protect("base_role", $"not ({In("Id", roles)}) and ({In("ParentId", roles)})");
+            Protect("base_permission", $"not ({In("Id", permissions)}) and ({In("ParentId", permissions)})");
+            Protect("base_user_role", $"not ({In("UserId", users)}) and ({In("RoleId", roles)})");
+            Protect("base_user_org", $"not ({In("UserId", users)}) and ({In("OrgId", orgs)})");
+            Protect("base_role_org", $"not ({In("RoleId", roles)}) and ({In("OrgId", orgs)})");
+            Protect("base_role_permission", $"not ({In("RoleId", roles)}) and ({In("PermissionId", permissions)})");
+            Protect("base_pkg_permission", In("PermissionId", permissions));
+            Delete("base_role_permission", In("RoleId", roles) + " or " + In("PermissionId", permissions));
+            Delete("base_permission_api", In("PermissionId", permissions));
+            Delete("base_user_role", In("UserId", users) + " or " + In("RoleId", roles));
+            Delete("base_user_org", In("UserId", users) + " or " + In("OrgId", orgs));
+            Delete("base_role_org", In("RoleId", roles) + " or " + In("OrgId", orgs));
+            Delete("base_user_staff", In("Id", users));
+            Delete("base_pkg_permission", In("PermissionId", permissions));
+            Delete("base_msg_user", In("UserId", users));
+            Delete("acc_p0_data_permission_fixture", In("OwnerId", users));
+            Delete("base_user", In("Id", users));
+            Delete("base_role", In("Id", roles));
+            Delete("base_permission", In("Id", permissions));
+            Delete("base_org", In("Id", orgs));
+        });
     }
 
     private static P0FixtureRecord ReadRecord(IFreeSql db, long id) => db.Ado.QuerySingle<P0FixtureRecord>(
@@ -296,12 +331,15 @@ public sealed class P0DataPermissionAcceptanceTests
     {
         private readonly P0TestLoggerProvider _logger;
         private string _originalSwitch;
+        private string _originalConfigCenterPath;
 
         public P0DataPermissionAcceptanceFactory(P0TestLoggerProvider logger = null) => _logger = logger;
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             _originalSwitch = Environment.GetEnvironmentVariable(FixtureSwitch);
+            _originalConfigCenterPath = Environment.GetEnvironmentVariable("ADMINCORE_CONFIGCENTER_PATH");
+            Environment.SetEnvironmentVariable("ADMINCORE_CONFIGCENTER_PATH", Path.Combine(AppContext.BaseDirectory, "ConfigCenter"));
             Environment.SetEnvironmentVariable(FixtureSwitch, "true");
             builder.UseEnvironment(EnvName);
             if (_logger is not null)
@@ -312,8 +350,12 @@ public sealed class P0DataPermissionAcceptanceTests
 
         protected override void Dispose(bool disposing)
         {
-            Environment.SetEnvironmentVariable(FixtureSwitch, _originalSwitch);
-            base.Dispose(disposing);
+            try { base.Dispose(disposing); }
+            finally
+            {
+                Environment.SetEnvironmentVariable(FixtureSwitch, _originalSwitch);
+                Environment.SetEnvironmentVariable("ADMINCORE_CONFIGCENTER_PATH", _originalConfigCenterPath);
+            }
         }
     }
 

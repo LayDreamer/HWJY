@@ -15,7 +15,7 @@ function Assert-GateReport {
     $definitions = @($trx.SelectNodes("//*[local-name()='UnitTest']") | Where-Object { $_.id -in $executedIds })
     $methods = @($definitions | ForEach-Object { $_.SelectSingleNode("./*[local-name()='TestMethod']") })
     $requiredSuites = @('AdminCoreAdmissionTests', 'P0SchemaGuardProductionTests', 'P0T2ModuleAndTransactionAcceptanceTests',
-        'PermissionHandlerTests', 'TransactionInterceptorTests', 'DependencyHealthTests', 'DependencySecurityCompatibilityTests', 'RepositoryBoundaryTests', 'GateCoverageTests')
+        'PermissionHandlerTests', 'TransactionInterceptorTests', 'DependencyHealthTests', 'DependencySecurityCompatibilityTests', 'RepositoryBoundaryTests', 'GateCoverageTests', 'P0MySqlIsolationGuardTests', 'AcceptanceFixtureCleanupTests')
     if ($Mode -eq 'Full') { $requiredSuites += @('HostMySqlAcceptanceTests', 'P0MigrationAcceptanceTests', 'P0T4HostIsolationTests', 'P0DataPermissionAcceptanceTests') }
     foreach ($suite in $requiredSuites) {
         if (!($methods | Where-Object { $_.className -match ('\.' + [regex]::Escape($suite) + '(,|$)') })) {
