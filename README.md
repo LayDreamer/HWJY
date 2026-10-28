@@ -1,6 +1,6 @@
-# ZhonTai Admin
+# HWJY 管理系统
 
-本仓库当前提供一套基于 .NET 10 和 Vue 3 的后台管理运行基线。主运行面由 `ZhonTai.Admin.Host` 提供 API、认证授权、数据初始化和接口文档；前端位于 `ui/zhontai.ui.admin.vue3`。
+HWJY 是基于 .NET 10 和 Vue 3 的后台管理系统，提供 API、认证授权、数据初始化和接口文档。后端入口和前端目录见下方目录说明。
 
 ## 当前范围
 
@@ -35,8 +35,18 @@ database/                              MySQL 发布物及迁移清单
 ## 开发环境
 
 - .NET SDK 10；
-- Node.js：前端 `package.json` 声明 `>=16`，建议使用当前 LTS；
-- pnpm（可通过 Corepack 启用）。
+- Node.js：前端 `package.json` 声明 `^20.19.0 || ^22.13.0 || >=24.0.0`，推荐使用与 CI 一致的 **24.x**；其他声明允许的版本不代表已经过当前 CI 验证；
+- pnpm **11.25.0**，与前端 `packageManager` 和 CI 固定版本一致；
+- Windows 开发与质量门禁环境使用 **PowerShell 7**，确保 `pwsh` 位于 PATH。`pnpm build` 调用 `tools/build.ps1`，Windows PowerShell 5.1 的 `powershell.exe` 不能替代此入口。
+
+安装 Node.js 24.x 和 PowerShell 7 后，在 PowerShell 7 中检查工具版本；已有正确版本 pnpm 时跳过安装命令：
+
+```powershell
+npm install --global pnpm@11.25.0
+node --version
+pnpm --version
+pwsh -NoProfile -Command '$PSVersionTable.PSVersion'
+```
 
 后端默认数据库配置位于 `src/modules/admin/ZhonTai.Admin.Host/ConfigCenter/dbconfig.json`：当前为 SQLite，且首次启动会创建数据库、同步表结构并导入初始化数据。请勿将该默认启动流程直接指向共享或生产数据库。
 
@@ -65,20 +75,30 @@ dotnet run --project src/modules/admin/ZhonTai.Admin.Host -- --worker
 
 ## 启动前端
 
-```bash
+首次获取仓库：
+
+```powershell
+git clone https://github.com/LayDreamer/HWJY.git
+cd HWJY
+```
+
+从仓库根目录执行（已有本地仓库时直接从此步开始）：
+
+```powershell
 cd ui/zhontai.ui.admin.vue3
-corepack enable
-pnpm install --frozen-lockfile
+pnpm install --frozen-lockfile --registry=https://registry.npmjs.org
 pnpm dev
 ```
 
 开发服务器默认使用 `9011` 端口，开发环境 API 地址由 `.env.development` 中的 `VITE_API_URL` 配置，当前对齐后端的 `http://localhost:18010`。
 
-生产构建：
+生产构建（在前端目录另开终端执行，或先停止开发服务）：
 
-```bash
+```powershell
 pnpm build
 ```
+
+构建会清理并重建前端目录下的 `dist/`。更多前端说明见 [前端 README](ui/zhontai.ui.admin.vue3/README.md)。
 
 ## 验证
 
@@ -86,15 +106,18 @@ pnpm build
 dotnet test src/ZhonTai.sln --no-restore
 ```
 
-前端可使用下列项目脚本：
+在 `ui/zhontai.ui.admin.vue3` 目录执行与质量门禁一致的前端检查：
 
-```bash
-pnpm lint-fix
-pnpm format
-pnpm gen:api
+```powershell
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
 ```
 
-`gen:api` 会根据当前接口文档重新生成前端 API 代码；提交前请检查生成内容是否符合本次接口改动。
+这些命令只覆盖前端检查，完整质量门禁和隔离 MySQL 验收要求见 [质量 Gate 说明](tools/QUALITY-GATE.md)。
+
+按需使用的维护脚本：`pnpm lint-fix` 和 `pnpm format` 会修改文件；`pnpm gen:api` 会根据当前接口文档重新生成前端 API 代码。它们不属于上述常规验证步骤，运行后请检查变更范围。
 
 ## 数据库发布物
 

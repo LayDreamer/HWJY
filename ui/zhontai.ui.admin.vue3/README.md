@@ -1,118 +1,64 @@
-<div align="center">
-	<h2>中台admin</h2>
-	<h3>前后端分离后台权限管理系统</h3>
-	<p align="center">
-	    <a href="https://v3.vuejs.org/" target="_blank">
-	        <img src="https://img.shields.io/badge/vue.js-vue3.x-green" alt="vue">
-	    </a>
-	    <a href="https://element-plus.gitee.io/#/zh-CN/component/changelog" target="_blank">
-	        <img src="https://img.shields.io/badge/element--plus-%3E1.0.0-blue" alt="element plus">
-	    </a>
-			<a href="https://vitejs.dev/" target="_blank">
-					<img src="https://img.shields.io/badge/vite-%3E2.0.0-yellow" alt="vite">
-			</a>
-			<a href="https://github.com/zhontai/admin.ui.plus/blob/master/LICENSE" target="_blank">
-					<img src="https://img.shields.io/badge/license-MIT-success" alt="license">
-			</a>
-	</p>
-	<p>&nbsp;</p>
-</div>
+# HWJY 管理前端
 
-#### 🌈 介绍
+本目录是 HWJY 的 Vue 3 管理前端，基于 TypeScript、Vite、Element Plus、Vue Router 和 Pinia，配合系统后端提供后台管理界面。
 
-基于 vue3.x + CompositionAPI setup 语法糖 + typescript + vite + element plus + vue-router-next + pinia 技术，内置支持一键生成微服务接口，适配手机、平板、pc 的后台权限管理框架，希望减少工作量，帮助大家实现快速开发。
+项目范围及后端启动方式见 [根 README](../../README.md)，完整验收要求见 [质量 Gate 说明](../../tools/QUALITY-GATE.md)。
 
-#### ⛱️ 线上预览
+## 开发环境
 
-- vue3.x 版本预览（admin.ui.plus）<a href="https://admin.zhontai.net/login" target="_blank">https://admin.zhontai.net</a>  
-  账号：user 密码：123asd
+- Node.js：`package.json` 声明 `^20.19.0 || ^22.13.0 || >=24.0.0`。推荐使用与 CI 一致的 **24.x**；其他声明允许的版本不代表已经过当前 CI 验证。
+- pnpm：固定使用 **11.25.0**，与 `packageManager` 和 CI 一致。
+- Windows 开发与质量门禁环境使用 **PowerShell 7**，确保 `pwsh` 位于 PATH。`pnpm build` 实际调用 `pwsh -NoProfile -File tools/build.ps1`，Windows PowerShell 5.1 的 `powershell.exe` 不能替代此入口。
 
-#### 💒 代码仓库
+安装 Node.js 24.x 和 PowerShell 7 后，在 PowerShell 7 中检查工具版本；已有正确版本 pnpm 时跳过安装命令：
 
-- vue3.x 版本 <a href="https://github.com/zhontai/Admin.Core/tree/master/ui/zhontai.ui.admin.vue3" target="_blank">zhontai.ui.admin.vue3</a>
-
-#### 🚧 安装 pnpm
-
-- 复制代码(桌面 cmd 运行) `npm install -g pnpm --registry=https://registry.npmmirror.com`
-
-#### 🏭 环境支持
-
-| Edge      | Firefox      | Chrome      | Safari      |
-| --------- | ------------ | ----------- | ----------- |
-| Edge ≥ 88 | Firefox ≥ 78 | Chrome ≥ 87 | Safari ≥ 13 |
-
-> 由于 Vue3 不再支持 IE11，故而 ElementPlus 也不支持 IE11 及之前版本。
-
-#### ⚡ 使用说明
-
-建议使用 pnpm，因为 yarn 有时会报错。<a href="http://nodejs.cn" target="_blank">node 版本 > 14.18+/16+</a>
-
-> Vite 不再支持 Node 12 / 13 / 15，因为上述版本已经进入了 EOL 阶段。现在你必须使用 Node 14.18+ / 16+ 版本。
-
-```bash
-# 克隆项目
-git clone https://github.com/zhontai/Admin.Core.git
-
-# 进入项目
-cd ui\zhontai.ui.admin.vue3
-
-# 安装依赖
-pnpm install
-
-# 运行项目
-pnpm run dev
-
-# 打包发布
-pnpm run build
+```powershell
+npm install --global pnpm@11.25.0
+node --version
+pnpm --version
+pwsh -NoProfile -Command '$PSVersionTable.PSVersion'
 ```
 
-#### 📚 开发文档
+## 获取与启动
 
-- 查看开发文档：<a href="https://www.zhontai.net" target="_blank">https://zhontai.net</a>
+首次获取仓库：
 
-#### 💯 学习交流加 QQ 群
+```powershell
+git clone https://github.com/LayDreamer/HWJY.git
+cd HWJY
+```
 
-> 中台 admin 开发群（2000 人群）。
+从仓库根目录执行（已有本地仓库时直接从此步开始）：
 
-- QQ 群号：<a target="_blank" href="//qm.qq.com/cgi-bin/qm/qr?k=zjVRMcdD_oxPokw7zG1kv8Ud4kPJUZAk&jump_from=webapi&authKey=smP6idH1QaIqi6NSiBck8nZuY1BokW4fpi/IGcRi6w/Xt/HTyqfqrC5WpVRsSi22">1058693879</a>
+```powershell
+cd ui/zhontai.ui.admin.vue3
+pnpm install --frozen-lockfile --registry=https://registry.npmjs.org
+pnpm dev
+```
 
-  <a target="_blank" href="//qm.qq.com/cgi-bin/qm/qr?k=zjVRMcdD_oxPokw7zG1kv8Ud4kPJUZAk&jump_from=webapi&authKey=smP6idH1QaIqi6NSiBck8nZuY1BokW4fpi/IGcRi6w/Xt/HTyqfqrC5WpVRsSi22">
-  	<img src="https://zhontai.net/images/qq-group-1058693879.png" width="220" height="220" alt="中台admin 开发群" title="中台admin 开发群"/>
-  </a>
+开发服务器默认端口为 `9011`（由 `.env` 的 `VITE_PORT` 配置），请以终端实际输出的访问地址为准。开发 API 地址由 `.env.development` 的 `VITE_API_URL` 配置，当前为 `http://localhost:18010`；使用系统功能前需按根 README 启动后端。
 
-#### 💕 特别感谢
+## 构建与验证
 
-- <a href="https://github.com/lyt-Top/vue-next-admin" target="_blank">vue-next-admin</a>
+以下命令均在 `ui/zhontai.ui.admin.vue3` 目录执行。开发服务持续占用当前终端，可另开终端或先停止服务。
 
-#### ❤️ 鸣谢列表
+生产构建：
 
-- <a href="https://github.com/vuejs/vue" target="_blank">vue</a>
-- <a href="https://github.com/vuejs/vue-next" target="_blank">vue-next</a>
-- <a href="https://github.com/ElemeFE/element" target="_blank">element-ui</a>
-- <a href="https://github.com/element-plus/element-plus" target="_blank">element-plus</a>
-- <a href="https://github.com/vuejs/vue-router-next" target="_blank">vue-router-next</a>
-- <a href="https://github.com/vuejs/pinia" target="_blank">pinia</a>
-- <a href="https://github.com/apache/echarts" target="_blank">echarts</a>
-- <a href="https://github.com/axios/axios" target="_blank">axios</a>
-- <a href="https://github.com/zenorocha/clipboard.js" target="_blank">clipboard</a>
-- <a href="https://github.com/inorganik/countUp.js" target="_blank">countUp</a>
-- <a href="https://github.com/developit/mitt" target="_blank">mitt</a>
-- <a href="https://github.com/rstacruz/nprogress" target="_blank">nprogress</a>
-- <a href="https://github.com/sindresorhus/screenfull.js" target="_blank">screenfull</a>
-- <a href="https://github.com/SortableJS/Sortable" target="_blank">sortablejs</a>
-- <a href="https://github.com/sass/sass" target="_blank">sass</a>
-- <a href="https://github.com/microsoft/TypeScript" target="_blank">typescript</a>
-- <a href="https://github.com/vitejs/vite" target="_blank">vite</a>
-- <a href="https://github.com/wangeditor-team/wangEditor" target="_blank">wangeditor</a>
-- <a href="https://github.com/fengyuanchen/cropperjs" target="_blank">cropperjs</a>
-- <a href="https://github.com/davidshimjs/qrcodejs" target="_blank">qrcodejs</a>
-- <a href="https://github.com/crabbly/Print.js" target="_blank">print-js</a>
-- <a href="https://github.com/jbaysolutions/vue-grid-layout" target="_blank">vue-grid-layout</a>
-- <a href="https://github.com/antoniandre/splitpanes" target="_blank">splitpanes</a>
-- <a href="https://github.com/jsplumb/jsplumb" target="_blank">jsplumb</a>
-- <a href="https://github.com/hxj9102/table2excel" target="_blank">js-table2excel</a>
+```powershell
+pnpm build
+```
 
-#### 💌 支持作者
+构建入口会校验路径、清理并重建本目录下的 `dist/`，不要在其中存放需要保留的文件。
 
-如果觉得框架不错，或者已经在使用了，希望你可以去 <a target="_blank" href="https://github.com/zhontai/admin.ui.plus">Github</a> 或者
-<a target="_blank" href="https://gitee.com/zhontai/admin.ui.plus">Gitee</a> 帮我点个 ⭐ Star，这将是对我极大的鼓励与支持。
+与现有质量门禁一致的前端检查顺序：
+
+```powershell
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+```
+
+前端检查通过不等于完整质量门禁通过；后端和隔离 MySQL 验收按 [质量 Gate 说明](../../tools/QUALITY-GATE.md) 执行。
+
+按需维护：`pnpm lint-fix`、`pnpm format` 会修改文件；`pnpm gen:api` 根据接口文档生成 API 代码。运行后检查变更范围，不将这些命令作为常规验证步骤。
