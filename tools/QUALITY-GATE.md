@@ -78,9 +78,35 @@ pwsh -NoProfile -File tools/test-mysql-isolation.ps1 -MySqlBinaryDirectory 'D:/t
 
 ## CI
 
-`.github/workflows/quality-gate.yml` 在 PR、主分支推送和手动触发时，在 `windows-latest` 运行同一完整入口。工作流调用 `run-quality-gate.ps1 -Mode Full`，由 `run-mysql-acceptance.ps1` 在 runner 临时目录初始化上述独立实例；不再由工作流另行注入数据库连接。数据库启动、子进程 Gate 和 `finally` 清理位于同一 PowerShell 生命周期，保持 Windows 父进程存活，避免跨步骤丢失数据库进程；另有 `always()` 按同一状态目录清理兜底。随机密码仅用于本次实例，经过 GitHub 日志遮罩后传入验收；始终停止本次启动的进程。此流程不注册系统服务、不连接开发者现有数据库。使用锁文件安装前端依赖，保留检查日志/TRX/MySQL 启动日志 14 天以及通过检查的前端构建产物 7 天。
+`.github/workflows/quality-gate.yml` 始终响应 PR、`main/master/dev` 推送和手动触发，在 `windows-latest` 报告现有必需检查 **Full Quality Gate**。该名称为兼容已有分支保护而保留，实际执行范围以运行摘要为准：
+
+| 模式 | 适用条件 | 实际检查 |
+| --- | --- | --- |
+| `docs` | 变更仅涉及下述文档白名单 | 对完整变更范围执行 `git diff --check`；不恢复开发依赖、不启动 MySQL、不运行后端或前端构建及依赖审计 |
+| `reuse` | 主分支收到普通 PR 合并，且合并内容和成功验收证据均可严格核实 | 复用原 PR 已完成的 Full 与依赖审计；摘要提供来源运行链接，不声称本轮重新运行了 Full |
+| `full` | 其他代码或配置变更、手动触发，或无法可靠判断轻量条件 | 完整质量入口及高危/严重依赖审计；分流脚本或本工作流变更、手动运行或范围无法判断时再执行分流回归 |
+
+文档白名单为根目录 `README*.md`、`CHANGELOG.md`、`CONTRIBUTING.md`、`SECURITY.md`，`docs/` 下的 Markdown，`ui/` 下的 `README*.md`，以及 `tools/QUALITY-GATE.md`。`AGENTS.md`、`SKILL.md`、工作流、脚本、认证、权限、数据库、配置、依赖和未知路径仍走 Full；混合变更也走 Full。比较范围包括删除及重命名前的路径，不只检查最后一次提交。新增文档位置不在白名单时保守执行 Full。
+
+主分支去重仅接受可核实的普通双父合并：推送前提交必须为第一父，第二父须为本仓已合并 PR 的 head，第一父已包含在该 head 中，且最终文件树与 head 文件树一致。还需核实该 head 在本仓本工作流上的最新 PR 运行成功，**Run full quality gate** 和 **Audit high and critical dependencies** 两步均实际成功，证据在 24 小时内，且成功步骤记录的已验证源码树与合并树完全一致。该源码树只在 Full 和审计通过、工作树无未提交源码变更时记录，兼容 GitHub 在 PR 合并后返回空关联列表的情况。文档轻量运行的绿色状态不能作为 Full 证明。旧运行没有源码树记录时，以及 Squash/rebase、批量推送、未覆盖的主线变化、过期证明、API 错误或证据不足时均回退 Full；手动触发始终 Full。工作流仅增加读取 PR 和 Actions 运行的权限，不需要写权限。
+
+这些分流只减少重复工作，不改变 `run-quality-gate.ps1 -Mode Full` 的验收内容。Full 由 `run-mysql-acceptance.ps1` 在 runner 临时目录初始化上述独立实例；数据库启动、子进程 Gate 和 `finally` 清理位于同一 PowerShell 生命周期，另有 `always()` 清理兜底。随机密码经过日志遮罩，始终停止本次进程，不注册系统服务、不连接开发者现有数据库。Full 仍使用锁文件安装前端依赖，保留日志/TRX/MySQL 启动日志 14 天及通过检查的前端构建产物 7 天。
+
+分流回归可单独运行：`pwsh -NoProfile -File tools/test-quality-gate-plan.ps1`。日常开发先运行与改动相关的检查；只有代码、配置、环境或验收范围变化使已有证据失效时，才补充相应验证。
 
 若要强制阻止不合格 PR 合并，仓库管理员需在 GitHub 分支保护中将 **Full Quality Gate** 设为必需检查；仅添加 workflow 不会自动启用分支保护。
+
+### NuGet 缓存与 PR 收尾
+
+Full 模式使用 `actions/cache` 缓存 `~/.nuget/packages` 下载包，缓存键包含操作系统、架构和项目/依赖配置文件的内容哈希；依赖变化时可从同平台旧缓存补充恢复。命中缓存后仍执行 `dotnet restore`、完整验收和依赖审计，不缓存配置凭据、数据库、测试结果或构建产物。`docs` 和 `reuse` 模式不恢复或保存 NuGet 缓存。
+
+MySQL 清理在核实所属进程退出且 33306 无监听后，将活动证明 `process.json` 归档为 `process.stopped.json`；重复 Stop 不再读取已完成证明中的旧 PID，避免 PID 被其他进程复用时误报失败。活动实例仍严格校验端口、数据目录、可执行文件和进程启动时间，校验或清理失败时保留活动证明并报错。
+
+GitHub 的 PR 缓存作用域不能供其他 PR 直接复用。首次启用后，在默认分支通过现有 `workflow_dispatch` 手动执行一次 Full，建立后续 PR 可读取的默认分支缓存；之后默认分支实际执行 Full 时会按需更新缓存。缓存未命中或被淘汰时按正常恢复流程下载依赖。
+
+仓库设置启用 **Allow auto-merge** 和 **Automatically delete head branches**。只有已完成审查、获准合并的 PR 才单独启用自动合并，选择普通 **Merge**，待现有分支保护要求全部满足后合并；仓库允许自动合并并不等于所有 PR 都会自动合并，也不绕过 **Full Quality Gate**。普通合并继续按上述严格条件复用已验证文件树。
+
+合并后由 GitHub 自动清理源分支。本地同步先保留未提交改动，再获取远端更新并快进 `main`；确认已合并且没有额外提交或其他工作树占用后，使用 `git branch -d <分支名>` 清理本地分支。未合并分支继续保留。
 
 ## 依赖漏洞审计
 

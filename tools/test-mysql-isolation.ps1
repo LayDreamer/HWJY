@@ -36,7 +36,8 @@ function Daily-Listeners {
     } | ConvertTo-Json -Depth 5 -Compress
 }
 function Assert-Stopped([string]$Root) {
-    $proof = Get-Content -LiteralPath (Join-Path $Root 'process.json') -Raw | ConvertFrom-Json
+    Require (!(Test-Path -LiteralPath (Join-Path $Root 'process.json'))) 'Active ownership proof survived successful cleanup.'
+    $proof = Get-Content -LiteralPath (Join-Path $Root 'process.stopped.json') -Raw | ConvertFrom-Json
     Require ($proof.port -eq 33306) 'Unexpected instance port in proof.'
     foreach ($entry in @(@{processId=$proof.processId;startedAt=$proof.startedAt}) + @($proof.children)) {
         if (!$entry.processId) { continue }
@@ -93,10 +94,28 @@ try {
     try { & $ci -Action Stop -WorkingDirectory $smokeRoot } catch { $rejected=$true }
     Require $rejected 'Cleanup accepted altered instance identity.'
     [IO.File]::WriteAllText($statePath,$originalState)
+    $state=$originalState | ConvertFrom-Json
+    $state.startedAt=([DateTime]$state.startedAt).AddSeconds(-1).ToString('o')
+    $state | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $statePath
+    $rejected=$false
+    try { & $ci -Action Stop -WorkingDirectory $smokeRoot } catch { $rejected=$true }
+    Require $rejected 'Cleanup accepted an altered process start time.'
+    [IO.File]::WriteAllText($statePath,$originalState)
     & $ci -Action Stop -WorkingDirectory $smokeRoot
     Assert-Stopped $smokeRoot
+    $stoppedPath=Join-Path $smokeRoot 'process.stopped.json'
+    $stoppedState=[IO.File]::ReadAllText($stoppedPath)
+    # A completed proof may now name a reused PID; it must never be used for cleanup again.
+    $state=$stoppedState | ConvertFrom-Json
+    $state.processId=$PID
+    $state.startedAt=(Get-Process -Id $PID).StartTime.ToUniversalTime().ToString('o')
+    $state | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $stoppedPath
     & $ci -Action Stop -WorkingDirectory $smokeRoot
+    [IO.File]::WriteAllText($stoppedPath,$stoppedState)
+    Assert-Stopped $smokeRoot
     $results.rejectAlteredCleanupProof=$true
+    $results.rejectAlteredProcessIdentity=$true
+    $results.completedProofIgnoredOnRepeatedStop=$true
     $results.successCleanupAndRepeatedStop=$true
     foreach ($name in $names) {
         if ($null -eq $original[$name]) { Remove-Item -LiteralPath ('Env:'+$name) -ErrorAction SilentlyContinue }
