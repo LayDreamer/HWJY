@@ -78,7 +78,21 @@ pwsh -NoProfile -File tools/test-mysql-isolation.ps1 -MySqlBinaryDirectory 'D:/t
 
 ## CI
 
-`.github/workflows/quality-gate.yml` 在 PR、主分支推送和手动触发时，在 `windows-latest` 运行同一完整入口。工作流调用 `run-quality-gate.ps1 -Mode Full`，由 `run-mysql-acceptance.ps1` 在 runner 临时目录初始化上述独立实例；不再由工作流另行注入数据库连接。数据库启动、子进程 Gate 和 `finally` 清理位于同一 PowerShell 生命周期，保持 Windows 父进程存活，避免跨步骤丢失数据库进程；另有 `always()` 按同一状态目录清理兜底。随机密码仅用于本次实例，经过 GitHub 日志遮罩后传入验收；始终停止本次启动的进程。此流程不注册系统服务、不连接开发者现有数据库。使用锁文件安装前端依赖，保留检查日志/TRX/MySQL 启动日志 14 天以及通过检查的前端构建产物 7 天。
+`.github/workflows/quality-gate.yml` 始终响应 PR、`main/master/dev` 推送和手动触发，在 `windows-latest` 报告现有必需检查 **Full Quality Gate**。该名称为兼容已有分支保护而保留，实际执行范围以运行摘要为准：
+
+| 模式 | 适用条件 | 实际检查 |
+| --- | --- | --- |
+| `docs` | 变更仅涉及下述文档白名单 | 对完整变更范围执行 `git diff --check`；不恢复开发依赖、不启动 MySQL、不运行后端或前端构建及依赖审计 |
+| `reuse` | 主分支收到普通 PR 合并，且合并内容和成功验收证据均可严格核实 | 复用原 PR 已完成的 Full 与依赖审计；摘要提供来源运行链接，不声称本轮重新运行了 Full |
+| `full` | 其他代码或配置变更、手动触发，或无法可靠判断轻量条件 | 完整质量入口及高危/严重依赖审计；分流脚本或本工作流变更、手动运行或范围无法判断时再执行分流回归 |
+
+文档白名单为根目录 `README*.md`、`CHANGELOG.md`、`CONTRIBUTING.md`、`SECURITY.md`，`docs/` 下的 Markdown，`ui/` 下的 `README*.md`，以及 `tools/QUALITY-GATE.md`。`AGENTS.md`、`SKILL.md`、工作流、脚本、认证、权限、数据库、配置、依赖和未知路径仍走 Full；混合变更也走 Full。比较范围包括删除及重命名前的路径，不只检查最后一次提交。新增文档位置不在白名单时保守执行 Full。
+
+主分支去重仅接受可核实的普通双父合并：推送前提交必须为第一父，第二父须为本仓已合并 PR 的 head，第一父已包含在该 head 中，且最终文件树与 head 文件树一致。还需核实该 head 在本仓本工作流上的最新 PR 运行成功，**Run full quality gate** 和 **Audit high and critical dependencies** 两步均实际成功，证据在 24 小时内，且成功步骤记录的已验证源码树与合并树完全一致。该源码树只在 Full 和审计通过、工作树无未提交源码变更时记录，兼容 GitHub 在 PR 合并后返回空关联列表的情况。文档轻量运行的绿色状态不能作为 Full 证明。旧运行没有源码树记录时，以及 Squash/rebase、批量推送、未覆盖的主线变化、过期证明、API 错误或证据不足时均回退 Full；手动触发始终 Full。工作流仅增加读取 PR 和 Actions 运行的权限，不需要写权限。
+
+这些分流只减少重复工作，不改变 `run-quality-gate.ps1 -Mode Full` 的验收内容。Full 由 `run-mysql-acceptance.ps1` 在 runner 临时目录初始化上述独立实例；数据库启动、子进程 Gate 和 `finally` 清理位于同一 PowerShell 生命周期，另有 `always()` 清理兜底。随机密码经过日志遮罩，始终停止本次进程，不注册系统服务、不连接开发者现有数据库。Full 仍使用锁文件安装前端依赖，保留日志/TRX/MySQL 启动日志 14 天及通过检查的前端构建产物 7 天。
+
+分流回归可单独运行：`pwsh -NoProfile -File tools/test-quality-gate-plan.ps1`。日常开发先运行与改动相关的检查；只有代码、配置、环境或验收范围变化使已有证据失效时，才补充相应验证。
 
 若要强制阻止不合格 PR 合并，仓库管理员需在 GitHub 分支保护中将 **Full Quality Gate** 设为必需检查；仅添加 workflow 不会自动启用分支保护。
 

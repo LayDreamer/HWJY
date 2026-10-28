@@ -8,6 +8,8 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
+  actions: read
 
 concurrency:
   group: quality-${{ github.workflow }}-${{ github.ref }}
@@ -23,34 +25,96 @@ jobs:
         shell: pwsh
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Select verification scope
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./tools/quality-gate-plan.ps1
+      - name: Test quality gate routing
+        if: steps.plan.outputs.mode == 'full' && steps.plan.outputs.routing_tests == 'true'
+        id: routing
+        run: ./tools/test-quality-gate-plan.ps1
       - uses: actions/setup-dotnet@v4
+        if: steps.plan.outputs.mode == 'full'
         with:
           dotnet-version: 10.0.x
       - uses: pnpm/action-setup@v4
+        if: steps.plan.outputs.mode == 'full'
         with:
           version: 11.25.0
       - uses: actions/setup-node@v4
+        if: steps.plan.outputs.mode == 'full'
         with:
           node-version: '24'
           cache: pnpm
           cache-dependency-path: ui/zhontai.ui.admin.vue3/pnpm-lock.yaml
       - name: Restore backend
+        if: steps.plan.outputs.mode == 'full'
         run: dotnet restore src/ZhonTai.sln --disable-parallel
       - name: Install locked frontend dependencies
+        if: steps.plan.outputs.mode == 'full'
         working-directory: ui/zhontai.ui.admin.vue3
         run: pnpm install --frozen-lockfile --registry=https://registry.npmjs.org
       - name: Run full quality gate
+        if: steps.plan.outputs.mode == 'full'
+        id: full
         shell: pwsh
         run: |
           & pwsh -NoProfile -File ./tools/run-quality-gate.ps1 -Mode Full -NoRestore -MySqlWorkingDirectory (Join-Path $env:RUNNER_TEMP 'admincore-ci-mysql')
           if ($LASTEXITCODE -ne 0) { throw 'Full quality gate failed.' }
       - name: Audit high and critical dependencies
+        if: steps.plan.outputs.mode == 'full'
+        id: audit
         run: ./tools/run-dependency-audit.ps1
+      - name: Identify verified source tree
+        if: steps.plan.outputs.mode == 'full'
+        id: proof
+        run: |
+          . ./tools/quality-gate-plan.ps1 -LibraryOnly
+          try {
+            $tree = Invoke-QualityGateGit (Get-Location).Path @('rev-parse', 'HEAD^{tree}')
+            $clean = Invoke-QualityGateGit (Get-Location).Path @('diff', '--quiet', 'HEAD', '--')
+            $untracked = Invoke-QualityGateGit (Get-Location).Path @('ls-files', '--others', '--exclude-standard')
+            if ($tree.ExitCode -eq 0 -and $clean.ExitCode -eq 0 -and $untracked.ExitCode -eq 0 -and !$untracked.Output.Trim() -and $tree.Output.Trim() -match '^(?:[0-9a-f]{40}|[0-9a-f]{64})$') {
+              "tree=$($tree.Output.Trim())" >> $env:GITHUB_OUTPUT
+            } else {
+              'No reusable tree proof recorded; a subsequent main push will run Full again.' >> $env:GITHUB_STEP_SUMMARY
+            }
+          } catch {
+            'Tree proof unavailable; a subsequent main push will run Full again.' >> $env:GITHUB_STEP_SUMMARY
+          }
+      - name: 'Verified source tree: ${{ steps.proof.outputs.tree }}'
+        if: steps.plan.outputs.mode == 'full' && steps.proof.outputs.tree != ''
+        run: Write-Output 'Full verification and dependency audit completed for this clean checkout tree.'
       - name: Stop isolated Windows MySQL
-        if: always()
+        if: always() && steps.plan.outputs.mode == 'full'
         run: ./tools/ci-mysql.ps1 -Action Stop -WorkingDirectory (Join-Path $env:RUNNER_TEMP 'admincore-ci-mysql')
-      - name: Preserve build and test evidence
+      - name: Summarize executed checks
         if: always()
+        env:
+          MODE: ${{ steps.plan.outputs.mode }}
+          PLAN_OUTCOME: ${{ steps.plan.outcome }}
+          ROUTING_OUTCOME: ${{ steps.routing.outcome }}
+          FULL_OUTCOME: ${{ steps.full.outcome }}
+          AUDIT_OUTCOME: ${{ steps.audit.outcome }}
+        run: |
+          if ($env:PLAN_OUTCOME -ne 'success') {
+            'Scope selection or documentation validation failed; no successful verification is reported.' >> $env:GITHUB_STEP_SUMMARY
+          } elseif ($env:MODE -eq 'full') {
+            @(
+              '## Full verification results',
+              '',
+              '| Check | Outcome |',
+              '| --- | --- |',
+              "| Routing regressions | $env:ROUTING_OUTCOME |",
+              "| Backend, isolated MySQL and frontend | $env:FULL_OUTCOME |",
+              "| High/critical dependency audit | $env:AUDIT_OUTCOME |"
+            ) >> $env:GITHUB_STEP_SUMMARY
+          }
+      - name: Preserve build and test evidence
+        if: always() && steps.plan.outputs.mode == 'full'
         uses: actions/upload-artifact@v4
         with:
           name: quality-gate-evidence
@@ -60,6 +124,7 @@ jobs:
           if-no-files-found: error
           retention-days: 14
       - name: Preserve verified frontend build
+        if: success() && steps.plan.outputs.mode == 'full'
         uses: actions/upload-artifact@v4
         with:
           name: admin-ui-dist
