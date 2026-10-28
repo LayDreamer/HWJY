@@ -13,7 +13,7 @@ namespace ZhonTai.Admin.Core.Attributes;
 /// 启用权限验证
 /// </summary>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = true)]
-public class ValidatePermissionAttribute : AuthorizeAttribute, IAuthorizationFilter, IAsyncAuthorizationFilter
+public class ValidatePermissionAttribute : AuthorizeAttribute, IAsyncAuthorizationFilter
 {
     private async Task PermissionAuthorization(AuthorizationFilterContext context)
     {
@@ -46,6 +46,7 @@ public class ValidatePermissionAttribute : AuthorizeAttribute, IAuthorizationFil
             var isValid = await customPermissionHandler.ValidateAsync(context);
             if (!isValid)
             {
+                context.Result ??= new ForbidResult();
                 return;
             }
         }
@@ -64,11 +65,6 @@ public class ValidatePermissionAttribute : AuthorizeAttribute, IAuthorizationFil
                 context.Result = new ForbidResult();
             }
         }
-    }
-
-    public async void OnAuthorization(AuthorizationFilterContext context)
-    {
-        await PermissionAuthorization(context);
     }
 
     public async Task OnAuthorizationAsync(AuthorizationFilterContext context)
