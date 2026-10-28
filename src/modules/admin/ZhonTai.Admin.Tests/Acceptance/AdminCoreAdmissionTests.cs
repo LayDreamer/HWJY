@@ -127,12 +127,13 @@ public sealed class AdminCoreAdmissionTests
     [Trait("P0Gate", "Required")]
     public void MySql8ProviderSchemaAndTransactionAreAccepted()
     {
-        var connectionString = Environment.GetEnvironmentVariable("ADMINCORE_ACCEPTANCE_MYSQL")!;
+        var connectionString = P0MySqlAcceptanceEnvironment.RequireConnection("ADMINCORE_ACCEPTANCE_MYSQL");
+        using var cleanup = AcceptanceFixtureCleanup.ForMySql(connectionString);
         var key = $"mysql-acceptance-{Guid.NewGuid():N}";
         var config = NewDbConfig(key, FreeSql.DataType.MySql, connectionString);
         var cloud = new FreeSqlCloud();
         DbHelper.RegisterDb(cloud, MutableUser.System, config, new AppConfig { Tenant = false }, new HostAppOptions());
-        var db = cloud.Use(key);
+        using var db = cloud.Use(key);
         var id = DateTime.UtcNow.Ticks;
         using var manager = new UnitOfWorkManagerCloud(cloud);
         using (var unitOfWork = manager.Begin(key))
@@ -141,7 +142,6 @@ public sealed class AdminCoreAdmissionTests
             unitOfWork.Rollback();
         }
         Assert.False(db.Select<AdmissionRecord>().Any(x => x.Id == id));
-        db.Dispose();
     }
 
     private static AdmissionDatabase CreateDatabase(MutableUser user)

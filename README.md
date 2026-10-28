@@ -130,4 +130,4 @@ dotnet run --project tools/AdminCore.P0.Release -- plan
 dotnet run --project tools/AdminCore.P0.Release -- apply --confirm
 ```
 
-完整隔离 MySQL 验收使用 `tools/run-p0-gate.ps1`；缺少 `ADMINCORE_T4_MYSQL`、`ADMINCORE_HOST_MYSQL`、`ADMINCORE_HOST_MYSQL_LOG` 或 `ADMINCORE_ACCEPTANCE_MYSQL` 时会明确阻断。四个变量均指向专用隔离 schema，不得指向生产库。
+完整隔离 MySQL 验收使用 `pwsh -NoProfile -File tools/run-p0-gate.ps1 -Mode Full`，入口自动创建并停止独立的 `127.0.0.1:33306` 实例，使用专用账号和四个全新验收库，不需要手工设置连接串。测试在连接前拒绝 3306，并核对服务端端口、实例 UUID 和数据目录，避免连接或修改本机已有数据库。运行参数见 [质量 Gate 说明](tools/QUALITY-GATE.md)。

@@ -46,19 +46,17 @@ public sealed class HostMySqlAcceptanceTests
     [Trait("P0Gate", "Required")]
     public async Task FullHostRunsOnMySql8AndBusinessDataSurvivesRestart()
     {
-        var mainConnection = Environment.GetEnvironmentVariable(MainConnectionVariable)!;
-        var logConnection = Environment.GetEnvironmentVariable(LogConnectionVariable)!;
+        var mainConnection = P0MySqlAcceptanceEnvironment.RequireConnection(MainConnectionVariable);
+        var logConnection = P0MySqlAcceptanceEnvironment.RequireConnection(LogConnectionVariable);
+        using var cleanup = AcceptanceFixtureCleanup.ForMySql(mainConnection);
         WriteHostConfigs(mainConnection, logConnection);
 
         var recordCode = "ACC-REC-" + Guid.NewGuid().ToString("N")[..12];
         var apiLabel = "验收接口-" + Guid.NewGuid().ToString("N")[..12];
         var apiPath = "/api/acceptance/" + Guid.NewGuid().ToString("N")[..12];
 
-        // 先删掉验收业务表，以便证明建表动作由宿主自身完成。
-        using (var probe = BuildMySql(mainConnection))
-        {
-            probe.Ado.ExecuteNonQuery($"drop table if exists `{BusinessTable}`");
-        }
+        // Keep the committed row through both Host instances, then clean even when an assertion fails.
+        cleanup.RegisterHostRun(recordCode, apiPath, apiLabel);
 
         // ---------- 阶段 1：首个宿主实例 ----------
         using (var app = CreateHost())
@@ -180,8 +178,8 @@ public sealed class HostMySqlAcceptanceTests
     [Fact(Skip = "Legacy smoke fixture: Material is not an active business domain.")]
     public async Task MaterialApiUsesJwtRbacAndRoleOrgDataIsolationOnMySql8()
     {
-        var mainConnection = Environment.GetEnvironmentVariable(MainConnectionVariable)!;
-        var logConnection = Environment.GetEnvironmentVariable(LogConnectionVariable)!;
+        var mainConnection = P0MySqlAcceptanceEnvironment.RequireConnection(MainConnectionVariable);
+        var logConnection = P0MySqlAcceptanceEnvironment.RequireConnection(LogConnectionVariable);
         WriteHostConfigs(mainConnection, logConnection);
 
         using var app = CreateHost();
@@ -339,9 +337,19 @@ public sealed class HostMySqlAcceptanceTests
     /// </summary>
     private sealed class HostMySqlAcceptanceFactory : WebApplicationFactory<Program>
     {
+        private string _originalConfigCenterPath;
+
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
+            _originalConfigCenterPath = Environment.GetEnvironmentVariable("ADMINCORE_CONFIGCENTER_PATH");
+            Environment.SetEnvironmentVariable("ADMINCORE_CONFIGCENTER_PATH", Path.Combine(AppContext.BaseDirectory, "ConfigCenter"));
             builder.UseEnvironment(EnvName);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            try { base.Dispose(disposing); }
+            finally { Environment.SetEnvironmentVariable("ADMINCORE_CONFIGCENTER_PATH", _originalConfigCenterPath); }
         }
     }
 

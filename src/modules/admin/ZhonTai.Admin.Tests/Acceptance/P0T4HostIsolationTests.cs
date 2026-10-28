@@ -27,7 +27,7 @@ public sealed class P0T4HostIsolationTests
     [Trait("P0Gate", "Required")]
     public void DB10_NormalT4HostStartsWithAllWritableDatabasesIsolated()
     {
-        var connection = Environment.GetEnvironmentVariable("ADMINCORE_T4_MYSQL");
+        var connection = P0MySqlAcceptanceEnvironment.RequireConnection("ADMINCORE_T4_MYSQL");
         Assert.False(string.IsNullOrWhiteSpace(connection));
         Assert.Equal(T4Schema, new MySqlConnectionStringBuilder(connection).Database);
         using var config = WriteT4Configs(connection);
@@ -142,7 +142,7 @@ public sealed class P0T4HostIsolationTests
 
     private static string RequireT4Connection()
     {
-        var connection = Environment.GetEnvironmentVariable("ADMINCORE_T4_MYSQL");
+        var connection = P0MySqlAcceptanceEnvironment.RequireConnection("ADMINCORE_T4_MYSQL");
         Assert.False(string.IsNullOrWhiteSpace(connection), "Set ADMINCORE_T4_MYSQL to the dedicated T4 acceptance schema.");
         Assert.Equal(T4Schema, new MySqlConnectionStringBuilder(connection).Database);
         return connection!;

@@ -54,7 +54,8 @@ public sealed class P0T2ModuleAndTransactionAcceptanceTests
     [Trait("P0Gate", "Required")]
     public void TX01_TX02_TX03_OwnerTransaction_IsAtomicOnMySql8()
     {
-        var connectionString = Environment.GetEnvironmentVariable("ADMINCORE_T4_MYSQL")!;
+        var connectionString = P0MySqlAcceptanceEnvironment.RequireConnection("ADMINCORE_T4_MYSQL");
+        using var cleanup = AcceptanceFixtureCleanup.ForMySql(connectionString);
         var runId = Guid.NewGuid().ToString("N");
         using var fixture = T2MySqlFixture.Create(connectionString);
 
@@ -217,12 +218,15 @@ internal sealed class T2MySqlFixture : IDisposable
 
     public void DeleteRunRows(string runId)
     {
-        IndependentDb.Delete<P0T2OwnerHeader>().Where(item => item.CorrelationId.Contains(runId)).ExecuteAffrows();
-        IndependentDb.Delete<P0T2OwnerDetail>().Where(item => item.CorrelationId.Contains(runId)).ExecuteAffrows();
+        if (IndependentDb.DbFirst.ExistsTable("p0_t2_owner_detail"))
+            IndependentDb.Delete<P0T2OwnerDetail>().Where(item => item.CorrelationId.Contains(runId)).ExecuteAffrows();
+        if (IndependentDb.DbFirst.ExistsTable("p0_t2_owner_header"))
+            IndependentDb.Delete<P0T2OwnerHeader>().Where(item => item.CorrelationId.Contains(runId)).ExecuteAffrows();
     }
 
     public void Dispose()
     {
+        Manager.Dispose();
         IndependentDb.Dispose();
         _cloud.Use(P0T2ModuleAndTransactionAcceptanceTests.DbKey).Dispose();
     }

@@ -42,19 +42,13 @@ jobs:
       - name: Run full quality gate
         shell: pwsh
         run: |
-          try {
-            ./tools/ci-mysql.ps1 -Action Start
-            # Keep MySQL's Windows parent alive until the child Gate completes.
-            & pwsh -NoProfile -File ./tools/run-quality-gate.ps1 -Mode Full -NoRestore
-            if ($LASTEXITCODE -ne 0) { throw 'Full quality gate failed.' }
-          } finally {
-            ./tools/ci-mysql.ps1 -Action Stop
-          }
+          & pwsh -NoProfile -File ./tools/run-quality-gate.ps1 -Mode Full -NoRestore -MySqlWorkingDirectory (Join-Path $env:RUNNER_TEMP 'admincore-ci-mysql')
+          if ($LASTEXITCODE -ne 0) { throw 'Full quality gate failed.' }
       - name: Audit high and critical dependencies
         run: ./tools/run-dependency-audit.ps1
       - name: Stop isolated Windows MySQL
         if: always()
-        run: ./tools/ci-mysql.ps1 -Action Stop
+        run: ./tools/ci-mysql.ps1 -Action Stop -WorkingDirectory (Join-Path $env:RUNNER_TEMP 'admincore-ci-mysql')
       - name: Preserve build and test evidence
         if: always()
         uses: actions/upload-artifact@v4
