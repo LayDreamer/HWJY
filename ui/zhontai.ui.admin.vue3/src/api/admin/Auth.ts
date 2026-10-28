@@ -265,21 +265,25 @@ export class AuthApi<SecurityDataType = unknown> extends HttpClient<SecurityData
  * @name Refresh
  * @summary 刷新Token
 以旧换新
- * @request GET:/api/admin/auth/refresh
+ * @request POST:/api/admin/auth/refresh
  * @secure
  */
-  refresh = (
-    query: {
-      token: string
-    },
-    params: RequestParams = {}
-  ) =>
+  refresh = (data: { refreshToken: string }, params: RequestParams = {}) =>
     this.request<ResultOutputTokenInfo, any>({
-      path: `/api/admin/auth/refresh`,
-      method: 'GET',
-      query: query,
-      secure: true,
+      path: '/api/admin/auth/refresh',
+      method: 'POST',
+      body: data,
+      type: ContentType.Json,
       format: 'json',
+      ...params,
+    })
+
+  logout = (data: { refreshToken: string }, params: RequestParams = {}) =>
+    this.request<AxiosResponse, any>({
+      path: '/api/admin/auth/logout',
+      method: 'POST',
+      body: data,
+      type: ContentType.Json,
       ...params,
     })
   /**

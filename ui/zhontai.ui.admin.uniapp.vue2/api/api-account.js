@@ -2,8 +2,7 @@ import store from 'store'
 import httpApi from '../libs/config/http-api.js'
 import { showToast } from '../libs/utils/util.js'
 
-let lock = false
-let promiseResultList = []
+let tokenRefresh
 
 export const api = {
 	//登录
@@ -32,6 +31,17 @@ export const api = {
 				"code": params.smsCode
 			}, config)
 		}
+	},
+	//退出登录并撤销刷新会话
+	logout(params, config = {}) {
+		config = uni.$u.deepMerge({
+			custom: {
+				auth: false,
+				loading: { enable: false },
+				error: { enable: false }
+			}
+		}, config)
+		return httpApi.post('/api/admin/auth/logout', { refreshToken: params?.refreshToken || '' }, config)
 	},
 	//获得短信验证码
 	getSmsCode(params, config = {}) {
@@ -123,14 +133,17 @@ export const api = {
 	},
 	//刷新token
 	refreshToken(params, config = {}) {
-		return new Promise((resolve, reject) => {
-			promiseResultList.push({
-				resolve,
-				reject
-			})
-			if (!lock) {
-				lock = true
-				
+		const accessToken = store.state.account.token
+		const refreshToken = params?.refreshToken
+		const isCurrentSession = () => store.state.account.token === accessToken &&
+			store.state.account.refreshToken === refreshToken
+		if (!accessToken || !refreshToken || !isCurrentSession()) {
+			return Promise.reject(new Error('登录状态已变化，请重新发起请求'))
+		}
+		// Share only this credential's refresh; an old request cannot own a new login's waiters.
+		if (!tokenRefresh || tokenRefresh.token !== refreshToken) {
+			const refreshPromise = Promise.resolve().then(() => {
+				if (!isCurrentSession()) throw new Error('登录状态已变化，请重新发起请求')
 				config = uni.$u.deepMerge({
 					custom: {
 						auth: false,
@@ -140,40 +153,28 @@ export const api = {
 						}
 					},
 				}, config)
-				config.params = params
-				
-				httpApi.get('/api/admin/auth/refresh', config).then(res => {
-					if(res?.success){
-						store.commit('account/updateAuth', res.result, { root: true })
-						while (promiseResultList.length) {
-							promiseResultList.shift().resolve(res.data)
+				delete config.params
+				return httpApi.post('/api/admin/auth/refresh', { refreshToken }, config)
+			}).then(res => {
+				if (!isCurrentSession()) throw new Error('登录状态已变化，请重新发起请求')
+				if (!res?.success || !res.data?.accessToken || !res.data?.refreshToken) {
+					const lastPage = uni.$u.page()
+					showToast('您还没有登录', function(){
+						const currentPage = uni.$u.page()
+						const loginPage = '/pages/account/login'
+						if(isCurrentSession() && lastPage === currentPage && currentPage !== loginPage){
+							uni.navigateTo({ url: loginPage })
 						}
-					}else{
-						while (promiseResultList.length) {
-							promiseResultList.shift().reject()
-						}
-					}
-					lock = false
-					if(!res?.success){
-						const lastPage = uni.$u.page()
-						showToast('您还没有登录', function(){
-							//判断当前界面是否已是登录界面
-							const currentPage = uni.$u.page()
-							const loginPage = '/pages/account/login'
-							if(lastPage === currentPage && currentPage !== loginPage){
-								uni.navigateTo({
-									url: loginPage
-								})
-							}
-						},1000)
-					}
-				}).catch(err => {
-					while (promiseResultList.length) {
-						promiseResultList.shift().reject(err)
-					}
-					lock = false
-				})
-			}
-		})
+					},1000)
+					throw new Error('登录已失效，请重新登录')
+				}
+				store.commit('account/updateAuth', res.data, { root: true })
+				return res.data
+			}).finally(() => {
+				if (tokenRefresh?.promise === refreshPromise) tokenRefresh = undefined
+			})
+			tokenRefresh = { token: refreshToken, promise: refreshPromise }
+		}
+		return tokenRefresh.promise
 	},
 }

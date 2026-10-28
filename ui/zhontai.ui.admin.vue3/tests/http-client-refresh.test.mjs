@@ -20,7 +20,7 @@ function deferred() {
 }
 
 function token(accessToken = 'old-token', expiresIn = 1000) {
-  return { accessToken, accessTokenExpiresAt: new Date(Date.now() + expiresIn).toISOString(), accessTokenLifeTime: 3600 }
+  return { accessToken, refreshToken: accessToken + '-refresh', accessTokenExpiresAt: new Date(Date.now() + expiresIn).toISOString(), accessTokenLifeTime: 3600 }
 }
 
 // Run the actual client with Axios's adapter boundary; no browser, server or real credentials are used.
@@ -50,6 +50,8 @@ function fixture(clientSource) {
         refresh(input, options) {
           state.refreshCalls++
           assert.equal(options.login, false)
+          assert.equal(input.refreshToken, state.tokenInfo.refreshToken)
+          assert.equal(input.token, undefined)
           return state.refresh(input)
         }
       },
@@ -173,7 +175,7 @@ for (const [name, clientSource] of [['current client', source], ['generated temp
     const state = fixture(clientSource)
     const oldRefresh = deferred()
     const newRefresh = deferred()
-    state.refresh = ({ token: value }) => value === 'old-token' ? oldRefresh.promise : newRefresh.promise
+    state.refresh = ({ refreshToken: value }) => value === 'old-token-refresh' ? oldRefresh.promise : newRefresh.promise
     const oldResult = assert.rejects(request(state.client(), '/old-session'))
     await tick()
     state.tokenInfo = token('new-session')

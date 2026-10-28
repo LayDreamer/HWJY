@@ -68,6 +68,7 @@ public partial class UserService : BaseService, IUserService, IDynamicApi
     private readonly Lazy<IOrgRepository> _orgRep;
     private readonly Lazy<IPermissionRepository> _permissionRep;
     private readonly OrgService _orgService;
+    private readonly IRefreshSessionStore _refreshSessions;
 
     public UserService(
         IOptions<AppConfig> appConfig,
@@ -87,7 +88,8 @@ public partial class UserService : BaseService, IUserService, IDynamicApi
         Lazy<ITenantRepository> tenantRep,
         Lazy<IOrgRepository> orgRep,
         Lazy<IPermissionRepository> permissionRep,
-        OrgService orgService
+        OrgService orgService,
+        IRefreshSessionStore refreshSessions
     )
     {
         _appConfig = appConfig.Value;
@@ -108,6 +110,7 @@ public partial class UserService : BaseService, IUserService, IDynamicApi
         _orgRep = orgRep;
         _permissionRep = permissionRep;
         _orgService = orgService;
+        _refreshSessions = refreshSessions;
     }
 
     /// <summary>
@@ -831,6 +834,7 @@ public partial class UserService : BaseService, IUserService, IDynamicApi
         }
        
         await _userRep.UpdateAsync(entity);
+        _refreshSessions.RevokeUser(entity.Id);
     }
 
     /// <summary>
@@ -864,6 +868,7 @@ public partial class UserService : BaseService, IUserService, IDynamicApi
             entity.Password = MD5Encrypt.Encrypt32(password);
         }
         await _userRep.UpdateAsync(entity);
+        _refreshSessions.RevokeUser(entity.Id);
         return password;
     }
 
@@ -897,6 +902,10 @@ public partial class UserService : BaseService, IUserService, IDynamicApi
         }
         entity.Enabled = input.Enabled;
         await _userRep.UpdateAsync(entity);
+        if (!input.Enabled)
+        {
+            _refreshSessions.RevokeUser(entity.Id);
+        }
     }
 
     /// <summary>
@@ -1000,6 +1009,7 @@ public partial class UserService : BaseService, IUserService, IDynamicApi
         await _userStaffRep.DeleteAsync(a => a.Id == id);
         //删除用户
         await _userRep.DeleteAsync(a => a.Id == id);
+        _refreshSessions.RevokeUser(id);
 
         //删除用户数据权限缓存
         await Cache.DelByPatternAsync(CacheKeys.GetDataPermissionPattern(id));
@@ -1032,6 +1042,7 @@ public partial class UserService : BaseService, IUserService, IDynamicApi
 
         foreach (var userId in ids)
         {
+            _refreshSessions.RevokeUser(userId);
             await Cache.DelByPatternAsync(CacheKeys.GetDataPermissionPattern(userId));
         }
     }
@@ -1056,6 +1067,7 @@ public partial class UserService : BaseService, IUserService, IDynamicApi
         }
 
         await _userRep.SoftDeleteAsync(id);
+        _refreshSessions.RevokeUser(id);
 
         await Cache.DelByPatternAsync(CacheKeys.GetDataPermissionPattern(id));
     }
@@ -1080,6 +1092,7 @@ public partial class UserService : BaseService, IUserService, IDynamicApi
 
         foreach (var userId in ids)
         {
+            _refreshSessions.RevokeUser(userId);
             await Cache.DelByPatternAsync(CacheKeys.GetDataPermissionPattern(userId));
         }
     }
@@ -1133,7 +1146,7 @@ public partial class UserService : BaseService, IUserService, IDynamicApi
             authLoginOutput.Tenant = tenant;
         }
 
-        var tokenInfo = AppInfo.GetRequiredService<IAuthService>().GetTokenInfo(authLoginOutput);
+        var tokenInfo = await AppInfo.GetRequiredService<IAuthService>().GetTokenInfoAsync(authLoginOutput);
 
         return tokenInfo;
     }

@@ -146,7 +146,7 @@ const onHandleCommandClick = (path: string) => {
       },
     })
       .then(async () => {
-        storesUseUserInfo.clear()
+        await storesUseUserInfo.logout()
       })
       .catch(() => {})
   } else if (path === 'wareHouse') {

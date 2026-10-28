@@ -10,6 +10,9 @@ public static class ClaimAttributes
     /// </summary>
     public const string UserId = "uid";
 
+    /// <summary>服务端登录会话Id。</summary>
+    public const string SessionId = "sid";
+
     /// <summary>
     /// 用户名
     /// </summary>

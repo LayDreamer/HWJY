@@ -797,7 +797,7 @@ public class TenantService : BaseService, ITenantService, IDynamicApi
             throw ResultOutput.Exception(_adminLocalizer["超级管理员不存在"]);
         }
 
-        var tokenInfo = AppInfo.GetRequiredService<IAuthService>().GetTokenInfo(authLoginOutput);
+        var tokenInfo = await AppInfo.GetRequiredService<IAuthService>().GetTokenInfoAsync(authLoginOutput);
 
         return tokenInfo;
     }
