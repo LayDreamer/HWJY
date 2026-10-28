@@ -818,7 +818,7 @@ public class HostApp
         });
 
         //oss文件上传
-        services.AddOSS();
+        services.AddOSS(AppInfo.GetOptions<OSSConfig>());
 
         //IP地址定位库
         if (appConfig.IP2Region.Enable)
