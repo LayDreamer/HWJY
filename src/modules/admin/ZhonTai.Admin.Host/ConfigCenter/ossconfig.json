@@ -28,6 +28,7 @@
         "IsEnableHttps": false,
         "IsEnableCache": true,
         "BucketName": "admin",
+        "PublicRead": false, //仅独立公共资源桶可显式改为true
         "Url": "", //文件外链
         "Md5": false,
         "Enable": false

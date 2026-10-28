@@ -43,6 +43,8 @@ public class OSSOptions
     /// 存储桶
     /// </summary>
     public string BucketName { get; set; } = "admin";
+    /// <summary>仅独立公共资源桶允许匿名读取；业务附件桶保持 false。</summary>
+    public bool PublicRead { get; set; } = false;
     /// <summary>
     /// 文件地址
     /// </summary>

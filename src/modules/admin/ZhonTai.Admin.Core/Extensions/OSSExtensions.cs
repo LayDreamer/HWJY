@@ -1,7 +1,9 @@
-﻿using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Minio;
+using Minio.Exceptions;
 using OnceMi.AspNetCore.OSS;
+using System.Text.Json.Nodes;
 using ZhonTai.Admin.Core.Configs;
 using OSSOptions = ZhonTai.Admin.Core.Configs.OSSOptions;
 
@@ -13,81 +15,130 @@ namespace ZhonTai.Admin.Core.Extensions;
 public static class OSSExtensions
 {
     /// <summary>
-    /// 创建存储桶
-    /// </summary>
-    /// <param name="oSSServiceFactory"></param>
-    /// <param name="oSSOptions"></param>
-    private static void CreateBucketName(IOSSServiceFactory oSSServiceFactory, OSSOptions oSSOptions)
-    {
-        var oSSService = oSSServiceFactory.Create(oSSOptions.Provider.ToString());
-        if (!oSSService.BucketExistsAsync(oSSOptions.BucketName).Result)
-        {
-            oSSService.CreateBucketAsync(oSSOptions.BucketName).Wait();
-        }
-
-        //设置Minio存储桶权限
-        if (oSSOptions.Provider == OSSProvider.Minio)
-        {
-            var bucketName = oSSOptions.BucketName;
-            var minioClient = new MinioClient()
-                .WithEndpoint(oSSOptions.Endpoint)
-                .WithCredentials(oSSOptions.AccessKey, oSSOptions.SecretKey);
-
-            if (oSSOptions.Region.NotNull())
-            {
-                minioClient.WithRegion(oSSOptions.Region);
-            }
-
-            minioClient = minioClient.Build();
-            //查看存储桶权限
-            //var policy = minioClient.GetPolicyAsync(new GetPolicyArgs().WithBucket(bucketName)).Result;
-            //设置存储桶权限，存储桶内的所有文件可以通过链接永久访问
-            var policy = $@"{{""Version"":""2012-10-17"",""Statement"":[{{""Effect"":""Allow"",""Principal"":{{""AWS"":[""*""]}},""Action"":[""s3:GetBucketLocation""],""Resource"":[""arn:aws:s3:::{bucketName}""]}},{{""Effect"":""Allow"",""Principal"":{{""AWS"":[""*""]}},""Action"":[""s3:GetObject""],""Resource"":[""arn:aws:s3:::{bucketName}/*.*""]}}]}}";
-            var setPolicyArgs = new SetPolicyArgs().WithBucket(bucketName).WithPolicy(policy);
-            minioClient.SetPolicyAsync(setPolicyArgs).Wait();
-        }
-    }
-
-    /// <summary>
     /// 添加OSS
     /// </summary>
-    /// <param name="services"></param>
-    /// <returns></returns>
-    public static IServiceCollection AddOSS(this IServiceCollection services)
+    public static IServiceCollection AddOSS(this IServiceCollection services, OSSConfig config)
     {
-        var oSSConfig = services.BuildServiceProvider().GetRequiredService<IOptions<OSSConfig>>().Value;
-
-        if (oSSConfig.OSSConfigs != null && oSSConfig.OSSConfigs.Any(s => s.Enable))
+        var enabledOptions = config.OSSConfigs?.Where(option => option.Enable).ToArray() ?? [];
+        if (enabledOptions.Length == 0)
         {
-            foreach (var oSSOptions in oSSConfig.OSSConfigs)
-            {
-                if (oSSOptions.Enable)
-                {
-                    services.AddOSSService(oSSOptions.Provider.ToString(), option =>
-                    {
-                        option.Provider = oSSOptions.Provider;
-                        option.Endpoint = oSSOptions.Endpoint;
-                        option.Region = oSSOptions.Region;
-                        option.AccessKey = oSSOptions.AccessKey;
-                        option.SecretKey = oSSOptions.SecretKey;
-                        option.IsEnableHttps = oSSOptions.IsEnableHttps;
-                        option.IsEnableCache = oSSOptions.IsEnableCache;
-                    });
-
-                    var oSSServiceFactory = services.BuildServiceProvider().GetRequiredService<IOSSServiceFactory>();
-                    CreateBucketName(oSSServiceFactory, oSSOptions);
-                }
-            }
+            services.AddOSSService(option => option.Provider = OSSProvider.Invalid);
+            return services;
         }
-        else
+
+        foreach (var ossOptions in enabledOptions)
         {
-            //未启用OSS注入
-            services.AddOSSService(option =>
+            services.AddOSSService(ossOptions.Provider.ToString(), option =>
             {
-                option.Provider = OSSProvider.Invalid;
+                option.Provider = ossOptions.Provider;
+                option.Endpoint = ossOptions.Endpoint;
+                option.Region = ossOptions.Region;
+                option.AccessKey = ossOptions.AccessKey;
+                option.SecretKey = ossOptions.SecretKey;
+                option.IsEnableHttps = ossOptions.IsEnableHttps;
+                option.IsEnableCache = ossOptions.IsEnableCache;
             });
         }
 
+        services.AddSingleton<IHostedService>(provider =>
+            new OSSBucketInitializer(provider.GetRequiredService<IOSSServiceFactory>(), enabledOptions));
         return services;
     }
+}
+
+internal sealed class OSSBucketInitializer(IOSSServiceFactory factory, IReadOnlyList<OSSOptions> options) : IHostedService
+{
+    public async Task StartAsync(CancellationToken cancellationToken)
+    {
+        foreach (var option in options)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (option.Provider == OSSProvider.Minio)
+            {
+                await InitializeMinioAsync(option, cancellationToken);
+                continue;
+            }
+
+            var service = factory.Create(option.Provider.ToString());
+            if (!await service.BucketExistsAsync(option.BucketName))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await service.CreateBucketAsync(option.BucketName);
+            }
+        }
+    }
+
+    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    private static async Task InitializeMinioAsync(OSSOptions option, CancellationToken cancellationToken)
+    {
+        var builder = new MinioClient()
+            .WithEndpoint(option.Endpoint)
+            .WithCredentials(option.AccessKey, option.SecretKey)
+            .WithSSL(option.IsEnableHttps);
+        if (option.Region.NotNull())
+            builder.WithRegion(option.Region);
+
+        using var client = builder.Build();
+        if (!await client.BucketExistsAsync(new BucketExistsArgs().WithBucket(option.BucketName), cancellationToken))
+            await client.MakeBucketAsync(new MakeBucketArgs().WithBucket(option.BucketName), cancellationToken);
+
+        string currentPolicy = null;
+        try
+        {
+            currentPolicy = await client.GetPolicyAsync(
+                new GetPolicyArgs().WithBucket(option.BucketName), cancellationToken);
+        }
+        catch (MinioException exception) when (exception.Response?.Code == "NoSuchBucketPolicy")
+        {
+            // Minio 5 may surface this code through different MinioException subtypes.
+        }
+
+        var policy = currentPolicy.NotNull()
+            ? JsonNode.Parse(currentPolicy).AsObject()
+            : new JsonObject { ["Version"] = "2012-10-17", ["Statement"] = new JsonArray() };
+        var originalPolicy = policy.DeepClone();
+        if (policy["Statement"] is JsonObject singleStatement)
+            policy["Statement"] = new JsonArray(singleStatement.DeepClone());
+        var statements = policy["Statement"].AsArray();
+        foreach (var statement in statements.ToArray())
+        {
+            if (statement?["Effect"]?.GetValue<string>() != "Allow") continue;
+            var principal = statement["Principal"];
+            if (IsWildcard(principal))
+            {
+                statements.Remove(statement);
+            }
+            else if (principal is JsonObject principals && principals["AWS"] is JsonNode aws)
+            {
+                if (IsWildcard(aws)) principals.Remove("AWS");
+                else if (aws is JsonArray accounts)
+                {
+                    foreach (var account in accounts.Where(IsWildcard).ToArray()) accounts.Remove(account);
+                    if (accounts.Count == 0) principals.Remove("AWS");
+                }
+                if (principals.Count == 0) statements.Remove(statement);
+            }
+        }
+
+        if (option.PublicRead)
+        {
+            statements.Add(new JsonObject
+            {
+                ["Effect"] = "Allow",
+                ["Principal"] = "*",
+                ["Action"] = "s3:GetObject",
+                ["Resource"] = $"arn:aws:s3:::{option.BucketName}/*"
+            });
+        }
+
+        if (JsonNode.DeepEquals(originalPolicy, policy)) return;
+        if (statements.Count == 0)
+            await client.RemovePolicyAsync(new RemovePolicyArgs().WithBucket(option.BucketName), cancellationToken);
+        else
+            await client.SetPolicyAsync(
+                new SetPolicyArgs().WithBucket(option.BucketName).WithPolicy(policy.ToJsonString()), cancellationToken);
+    }
+
+    private static bool IsWildcard(JsonNode node) => node is JsonValue value && value.TryGetValue<string>(out var text) && text == "*";
 }
