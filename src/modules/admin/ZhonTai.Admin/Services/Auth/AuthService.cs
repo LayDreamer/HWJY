@@ -51,13 +51,14 @@ namespace ZhonTai.Admin.Services.Auth;
 /// 认证授权服务
 /// </summary>
 [DynamicApi(Area = AdminConsts.AreaName)]
-public partial class AuthService : BaseService, IAuthService, IDynamicApi
+public partial class AuthService : BaseService, IAuthService, IAuthClientService, IDynamicApi
 {
     private readonly UserHelper _userHelper;
     private readonly AdminLocalizer _adminLocalizer;
     private readonly ICapPublisher _capPublisher;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IUserToken _userToken;
+    private readonly IRefreshSessionStore _refreshSessions;
     private readonly IUserService _userService;
     private readonly ILoginLogService _loginLogService;
     private readonly IOptions<AppConfig> _appConfig;
@@ -84,7 +85,8 @@ public partial class AuthService : BaseService, IAuthService, IDynamicApi
         Lazy<IPermissionRepository> permissionRep,
         Lazy<IPasswordHasher<UserEntity>> passwordHasher,
         Lazy<ISlideCaptcha> captcha,
-        Lazy<ITenantService> tenantService
+        Lazy<ITenantService> tenantService,
+        IRefreshSessionStore refreshSessions
     )
     {
         _appConfig = appConfig;
@@ -102,6 +104,7 @@ public partial class AuthService : BaseService, IAuthService, IDynamicApi
         _userToken = userToken;
         _userService = userService;
         _loginLogService = loginLogService;
+        _refreshSessions = refreshSessions;
     }
 
     /// <summary>
@@ -228,6 +231,9 @@ public partial class AuthService : BaseService, IAuthService, IDynamicApi
     /// <returns></returns>
     [NonAction]
     public string GetToken(AuthLoginOutput user)
+        => GetToken(user, null);
+
+    private string GetToken(AuthLoginOutput user, string sessionId)
     {
         if (user == null)
         {
@@ -242,6 +248,7 @@ public partial class AuthService : BaseService, IAuthService, IDynamicApi
             new (ClaimAttributes.UserType, user.Type.ToInt().ToString(), ClaimValueTypes.Integer32),
             new (JwtRegisteredClaimNames.Iat, DateTime.Now.ToTimestamp().ToString(), ClaimValueTypes.Integer64),
         };
+        if (sessionId.NotNull()) claims.Add(new Claim(ClaimAttributes.SessionId, sessionId));
 
         if (_appConfig.Value.Tenant)
         {
@@ -264,9 +271,24 @@ public partial class AuthService : BaseService, IAuthService, IDynamicApi
     /// <param name="user"></param>
     /// <returns></returns>
     [NonAction]
-    public TokenInfo GetTokenInfo(AuthLoginOutput user)
+    public async Task<TokenInfo> GetTokenInfoAsync(AuthLoginOutput user)
     {
-        var token = GetToken(user);
+        var stamp = await GetCredentialStampAsync(user.Id);
+        var expiresAt = DateTimeOffset.UtcNow.AddMinutes(_jwtConfig.Value.Value.Expires + _jwtConfig.Value.Value.RefreshExpires);
+        var ticket = _refreshSessions.Create(new RefreshSession(user.Id, stamp, expiresAt));
+        return CreateTokenInfo(user, ticket);
+    }
+
+    private async Task<string> GetCredentialStampAsync(long userId)
+    {
+        var password = await _userRep.Value.Select.DisableGlobalFilter(FilterNames.Tenant)
+            .Where(a => a.Id == userId).FirstAsync(a => a.Password);
+        return RefreshCredentials.Stamp(password);
+    }
+
+    private TokenInfo CreateTokenInfo(AuthLoginOutput user, RefreshTicket ticket)
+    {
+        var token = GetToken(user, ticket.SessionId);
 
         var now = DateTime.Now;
         var jwtConfig = _jwtConfig.Value.Value;
@@ -276,9 +298,9 @@ public partial class AuthService : BaseService, IAuthService, IDynamicApi
             AccessToken = token,
             AccessTokenExpiresAt = now.AddMinutes(jwtConfig.Expires),
             AccessTokenLifeTime = jwtConfig.Expires * 60,
-            RefreshToken = Guid.NewGuid().ToString("N"),
-            RefreshTokenExpiresAt = now.AddMinutes(jwtConfig.Expires + jwtConfig.RefreshExpires),
-            RefreshTokenLifeTime = jwtConfig.RefreshExpires * 60,
+            RefreshToken = ticket.Token,
+            RefreshTokenExpiresAt = ticket.ExpiresAt.UtcDateTime,
+            RefreshTokenLifeTime = Math.Max(0, (int)(ticket.ExpiresAt - DateTimeOffset.UtcNow).TotalSeconds),
             Timestamp = now.ToTimestamp()
         };
     }
@@ -720,7 +742,7 @@ public partial class AuthService : BaseService, IAuthService, IDynamicApi
                 authLoginOutput.Tenant = tenant;
             }
 
-            var tokenInfo = GetTokenInfo(authLoginOutput);
+            var tokenInfo = await GetTokenInfoAsync(authLoginOutput);
             #endregion
 
             loginLogAddInput.TenantId = authLoginOutput.TenantId;
@@ -826,7 +848,7 @@ public partial class AuthService : BaseService, IAuthService, IDynamicApi
                 }
                 authLoginOutput.Tenant = tenant;
             }
-            var tokenInfo = GetTokenInfo(authLoginOutput);
+            var tokenInfo = await GetTokenInfoAsync(authLoginOutput);
             #endregion
 
             loginLogAddInput.TenantId = authLoginOutput.TenantId;
@@ -936,7 +958,7 @@ public partial class AuthService : BaseService, IAuthService, IDynamicApi
                 }
                 authLoginOutput.Tenant = tenant;
             }
-            var tokenInfo = GetTokenInfo(authLoginOutput);
+            var tokenInfo = await GetTokenInfoAsync(authLoginOutput);
             #endregion
 
             loginLogAddInput.TenantId = authLoginOutput.TenantId;
@@ -1204,60 +1226,35 @@ public partial class AuthService : BaseService, IAuthService, IDynamicApi
     /// 刷新Token
     /// 以旧换新
     /// </summary>
-    /// <param name="token"></param>
+    /// <param name="input"></param>
     /// <returns></returns>
-    [HttpGet]
+    [HttpPost]
     [AllowAnonymous]
-    public async Task<TokenInfo> Refresh([BindRequired] string token)
+    [NoOperationLog]
+    public async Task<TokenInfo> Refresh([FromBody] AuthRefreshInput input)
     {
-        var jwtSecurityToken = _userToken.Decode(token);
-        var userClaims = jwtSecurityToken?.Claims?.ToArray();
-        if (userClaims == null || userClaims.Length == 0)
+        var session = _refreshSessions.Read(input?.RefreshToken);
+        if (session == null) throw ResultOutput.Exception(_adminLocalizer["登录信息已失效"]);
+        var user = await _userService.GetLoginUserAsync(session.UserId);
+        if (user == null || !user.Enabled ||
+            (_appConfig.Value.Tenant && user.Tenant?.Enabled != true) ||
+            session.CredentialStamp != await GetCredentialStampAsync(session.UserId))
         {
-            throw ResultOutput.Exception(_adminLocalizer["无法解析token"]);
-        }
-
-        var refreshExpires = userClaims.FirstOrDefault(a => a.Type == ClaimAttributes.RefreshExpires)?.Value;
-        if (refreshExpires.IsNull() || refreshExpires.ToLong() <= DateTime.Now.ToTimestamp())
-        {
-            throw ResultOutput.Exception(_adminLocalizer["登录信息已过期"]);
-        }
-
-        var userId = userClaims.FirstOrDefault(a => a.Type == ClaimAttributes.UserId)?.Value;
-        if (userId.IsNull())
-        {
+            _refreshSessions.Revoke(input.RefreshToken);
             throw ResultOutput.Exception(_adminLocalizer["登录信息已失效"]);
         }
+        var ticket = _refreshSessions.Rotate(input.RefreshToken);
+        if (ticket == null) throw ResultOutput.Exception(_adminLocalizer["登录信息已失效"]);
+        return CreateTokenInfo(user, ticket);
+    }
 
-        //验签
-        var securityKey = _jwtConfig.Value.Value.SecurityKey;
-        var signingCredentials = new SigningCredentials(new SymmetricSecurityKey(Encoding.ASCII.GetBytes(securityKey)), SecurityAlgorithms.HmacSha256);
-        var input = jwtSecurityToken.RawHeader + "." + jwtSecurityToken.RawPayload;
-        if (jwtSecurityToken.RawSignature != JwtTokenUtilities.CreateEncodedSignature(input, signingCredentials))
-        {
-            throw ResultOutput.Exception(_adminLocalizer["验签失败"]);
-        }
-
-        var user = await _userService.GetLoginUserAsync(userId.ToLong());
-        if (!(user?.Id > 0))
-        {
-            throw ResultOutput.Exception(_adminLocalizer["账号不存在"]);
-        }
-        if (!user.Enabled)
-        {
-            throw ResultOutput.Exception(_adminLocalizer["账号已停用，禁止登录"]);
-        }
-
-        if (_appConfig.Value.Tenant)
-        {
-            if (!(user.Tenant != null && user.Tenant.Enabled))
-            {
-                throw ResultOutput.Exception(_adminLocalizer["企业已停用，禁止登录"]);
-            }
-        }
-
-        var tokenInfo = GetTokenInfo(user);
-        return tokenInfo;
+    [HttpPost]
+    [AllowAnonymous]
+    [NoOperationLog]
+    public Task Logout([FromBody] AuthRefreshInput input)
+    {
+        _refreshSessions.Revoke(input?.RefreshToken);
+        return Task.CompletedTask;
     }
 
     /// <summary>

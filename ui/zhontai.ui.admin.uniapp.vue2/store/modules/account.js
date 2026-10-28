@@ -4,9 +4,9 @@ const auth = uni.getStorageSync("app_token")
 export default {
 	namespaced: true,
 	state: {
-		token: auth?.token || '',
+		token: auth?.accessToken || auth?.token || '',
 		refreshToken: auth?.refreshToken || '',
-		expireTime: auth?.expireTime || 0,
+		expireTime: auth?.accessTokenExpiresAt || auth?.expireTime || 0,
 		openId: auth?.openId || '',
 		userInfo: uni.getStorageSync("app_user_info") || null,
 	},
@@ -43,17 +43,17 @@ export default {
 	},
 	mutations: {
 		setAuth(state, data){
-			state.token = data?.token || ''
+			state.token = data?.accessToken || data?.token || ''
 			state.refreshToken = data?.refreshToken || ''
-			state.expireTime = data?.expireTime || 0
+			state.expireTime = data?.accessTokenExpiresAt || data?.expireTime || 0
 			uni.setStorageSync('app_token', data)
 		},
 		updateAuth(state, data){
-			state.token = data?.token || ''
-			state.expireTime = data?.expireTime || 0
-			auth.accessToken = state.token
-			auth.expireTime = state.expireTime
-			uni.setStorageSync('app_token', auth)
+			state.token = data?.accessToken || data?.token || ''
+			state.refreshToken = data?.refreshToken || ''
+			state.expireTime = data?.accessTokenExpiresAt || data?.expireTime || 0
+			const currentAuth = uni.getStorageSync('app_token') || {}
+			uni.setStorageSync('app_token', { ...currentAuth, ...data })
 		},
 		setUserInfo(state, data){
 			state.userInfo = data
@@ -64,6 +64,8 @@ export default {
 			uni.removeStorageSync('app_mobile')
 			uni.removeStorageSync('app_user_info')
 			state.token = ''
+			state.refreshToken = ''
+			state.expireTime = 0
 			state.mobile = ''
 			state.userInfo = null
 		}
@@ -80,8 +82,13 @@ export default {
 			}
 			return res
 		},
-		logout({ commit }, data){
+		async logout({ commit, state }){
+			const refreshToken = state.refreshToken
+			// Clear before awaiting the server so late refreshes cannot restore this login.
 			commit('logout')
+			if (refreshToken) {
+				await api.logout({ refreshToken })
+			}
 		}
 	}
 }

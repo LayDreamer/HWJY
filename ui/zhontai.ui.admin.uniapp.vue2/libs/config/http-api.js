@@ -28,7 +28,8 @@ let expireTokenList = []
 
 // 响应拦截
 http.interceptors.response.use(async(response) => { // 可使用async await 做异步操作
-	if(response.statusCode === 401){
+	// Public authentication endpoints must not recursively refresh or retry themselves.
+	if(response.statusCode === 401 && response.config.custom?.auth !== false){
 		if(response.config.custom?._retry){
 			const lastPage = uni.$u.page()
 			showToast('您还没有登录', function(){
@@ -45,9 +46,8 @@ http.interceptors.response.use(async(response) => { // 可使用async await 做�
 			let accessToken = (response.config.header['Authorization']||'').replace('Bearer ','')
 			expireTokenList.push(accessToken)
 			let account = store.state.account
-			debugger
 			if (expireTokenList.includes(account.token)){
-				await apiAccount.refreshToken({ token: account?.token })
+				await apiAccount.refreshToken({ refreshToken: account?.refreshToken })
 				//重试
 				try {
 					response.config.custom = response.config.custom || {}

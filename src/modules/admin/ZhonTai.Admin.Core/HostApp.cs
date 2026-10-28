@@ -310,6 +310,7 @@ public class HostApp
         #region 缓存
         //添加内存缓存
         services.AddMemoryCache();
+        services.TryAddSingleton(TimeProvider.System);
         if (cacheConfig.Type == CacheType.Redis)
         {
             //FreeRedis客户端
@@ -346,6 +347,15 @@ public class HostApp
             YitIdHelper.SetIdGenerator(appConfig.IdGenerator);
         }
 
+        services.AddSingleton<IRefreshSessionStore>(provider =>
+        {
+            var jwt = provider.GetRequiredService<JwtConfig>();
+            var clock = provider.GetRequiredService<TimeProvider>();
+            var prefix = "auth:" + RefreshCredentials.Stamp(jwt.Issuer + "\0" + jwt.Audience);
+            return cacheConfig.Type == CacheType.Redis
+                ? new RedisRefreshSessionStore(provider.GetRequiredService<IRedisClient>(), prefix, clock)
+                : new MemoryRefreshSessionStore(provider.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>(), clock);
+        });
         #endregion 缓存
 
         //权限处理
@@ -451,6 +461,16 @@ public class HostApp
                     ValidAudience = jwtConfig.Audience,
                     IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtConfig.SecurityKey)),
                     ClockSkew = TimeSpan.FromSeconds(10)
+                };
+                options.Events = new JwtBearerEvents
+                {
+                    OnTokenValidated = context =>
+                    {
+                        var sessionId = context.Principal?.FindFirst(ClaimAttributes.SessionId)?.Value;
+                        if (sessionId.NotNull() && !context.HttpContext.RequestServices.GetRequiredService<IRefreshSessionStore>().IsActive(sessionId))
+                            context.Fail("The login session has been revoked.");
+                        return Task.CompletedTask;
+                    }
                 };
             }
         })

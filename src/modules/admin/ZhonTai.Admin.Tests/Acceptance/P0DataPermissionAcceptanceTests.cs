@@ -50,6 +50,51 @@ public sealed class P0DataPermissionAcceptanceTests
     [P0DataPermissionAcceptanceFact]
     [Trait("P0Dependency", "MySql")]
     [Trait("P0Gate", "Required")]
+    public async Task LogoutWithAPreRotationCredentialInvalidatesTheRotatedJwtButPreservesAnotherLogin()
+    {
+        var mainConnection = P0MySqlAcceptanceEnvironment.RequireConnection(MainConnectionVariable);
+        var logConnection = P0MySqlAcceptanceEnvironment.RequireConnection(LogConnectionVariable);
+        var suffix = Guid.NewGuid().ToString("N")[..12];
+        using var cleanup = AcceptanceFixtureCleanup.ForMySql(mainConnection);
+        cleanup.Register(db => CleanupP0Fixtures(db, suffix));
+        WriteHostConfigs(mainConnection, logConnection);
+        using var app = CreateHost();
+        var db = app.Services.GetRequiredService<FreeSqlCloud>().Use(DbKeys.AdminDb);
+        var access = await SeedAccessAsync(db, suffix);
+        using var client = app.CreateClient();
+        client.DefaultRequestHeaders.TryAddWithoutValidation("X-Real-IP", "127.0.0.1");
+        client.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "AdminCore-AuthSessionAcceptance/1.0");
+        var login = await PostAsync(client, "/api/admin/auth/login", new { UserName = access.WriterUserName, Password = access.Password });
+        var originalRefresh = FindStringProperty(login, "refreshToken");
+        Assert.False(string.IsNullOrWhiteSpace(originalRefresh));
+
+        var refresh = await PostAsync(client, "/api/admin/auth/refresh", new { RefreshToken = originalRefresh });
+        var rotatedAccess = FindStringProperty(refresh, "accessToken");
+        var rotatedRefresh = FindStringProperty(refresh, "refreshToken");
+        Assert.False(string.IsNullOrWhiteSpace(rotatedAccess));
+        Assert.False(string.IsNullOrWhiteSpace(rotatedRefresh));
+        Assert.NotEqual(originalRefresh, rotatedRefresh);
+        using var protectedClient = app.CreateClient();
+        protectedClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", rotatedAccess);
+        using (var before = await protectedClient.GetAsync("/api/admin/auth/get-user-profile"))
+            Assert.Equal(System.Net.HttpStatusCode.OK, before.StatusCode);
+
+        using var otherLogin = app.CreateClient();
+        await LoginAsync(otherLogin, access.WriterUserName, access.Password);
+
+        // This is the credential captured by logout before a concurrent refresh returned.
+        Assert.True(IsSuccess(await PostAsync(client, "/api/admin/auth/logout", new { RefreshToken = originalRefresh })));
+        Assert.True(IsSuccess(await PostAsync(client, "/api/admin/auth/logout", new { RefreshToken = originalRefresh })));
+        using (var after = await protectedClient.GetAsync("/api/admin/auth/get-user-profile"))
+            Assert.Equal(System.Net.HttpStatusCode.Unauthorized, after.StatusCode);
+        Assert.False(IsSuccess(await PostAsync(client, "/api/admin/auth/refresh", new { RefreshToken = rotatedRefresh })));
+        using var unaffected = await otherLogin.GetAsync("/api/admin/auth/get-user-profile");
+        Assert.Equal(System.Net.HttpStatusCode.OK, unaffected.StatusCode);
+    }
+
+    [P0DataPermissionAcceptanceFact]
+    [Trait("P0Dependency", "MySql")]
+    [Trait("P0Gate", "Required")]
     public async Task DP01_to_DP06_RealJwtRbacAndOrgDataPermissionAreEnforced()
     {
         var mainConnection = P0MySqlAcceptanceEnvironment.RequireConnection(MainConnectionVariable);

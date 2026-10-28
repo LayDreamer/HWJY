@@ -14,4 +14,10 @@ public interface IAuthClientService
 {
     [Post("/api/admin/auth/login")]
     Task<TokenInfo> LoginAsync(AuthLoginInput input);
+
+    [Post("/api/admin/auth/refresh")]
+    Task<TokenInfo> Refresh([Body] AuthRefreshInput input);
+
+    [Post("/api/admin/auth/logout")]
+    Task Logout([Body] AuthRefreshInput input);
 }

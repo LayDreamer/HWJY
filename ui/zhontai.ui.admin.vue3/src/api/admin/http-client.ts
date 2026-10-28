@@ -74,7 +74,7 @@ const loadingInstance: LoadingInstance = {
   count: 0,
 }
 
-const apiWhiteList = ['/api/admin/auth/refresh']
+const apiWhiteList = ['/api/admin/auth/refresh', '/api/admin/auth/logout']
 let tokenRefresh: { token: string; promise: Promise<string> } | undefined
 
 export class HttpClient<SecurityDataType = unknown> {
@@ -309,7 +309,7 @@ export class HttpClient<SecurityDataType = unknown> {
             // 同一登录会话共享刷新结果，失败也必须结束所有等待请求。
             if (!tokenRefresh || tokenRefresh.token !== accessToken) {
               const refreshPromise: Promise<string> = Promise.resolve()
-                .then(() => new AuthApi().refresh({ token: accessToken }, { login: false, showErrorMessage: false }))
+                .then(() => new AuthApi().refresh({ refreshToken: tokenInfo.refreshToken! }, { login: false, showErrorMessage: false }))
                 .then((res) => {
                   if (!res?.success || !res.data?.accessToken) {
                     throw new Error(t('登录已失效，请重新登录'))

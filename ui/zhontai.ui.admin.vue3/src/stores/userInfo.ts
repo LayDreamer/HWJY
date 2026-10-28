@@ -60,6 +60,15 @@ export const useUserInfo = defineStore('userInfo', {
       this.userInfos.token = ''
       Local.remove(adminTokenInfoKey)
     },
+    async logout() {
+      const tokenInfo = this.getTokenInfo()
+      // Invalidate in-flight refreshes immediately, even when clear() is debounced.
+      this.removeTokenInfo()
+      this.clear()
+      if (tokenInfo?.refreshToken) {
+        await new AuthApi().logout({ refreshToken: tokenInfo.refreshToken }, { login: false, showErrorMessage: false })
+      }
+    },
     // 使用 debounce 包装 clear 方法，防止重复调用
     clear: debounce(
       function (this: any) {
