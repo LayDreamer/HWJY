@@ -136,6 +136,7 @@ import { cloneDeep } from 'lodash-es'
 import eventBus from '/@/utils/mitt'
 import { auth } from '/@/utils/authFunction'
 import { t } from '/@/i18n'
+import MySplitter from '/@/components/my-layout/splitter.vue'
 
 // 引入组件
 const RoleForm = defineAsyncComponent(() => import('./components/role-form.vue'))
@@ -143,7 +144,6 @@ const SetRoleMenu = defineAsyncComponent(() => import('./components/set-role-men
 const SetRoleDataScope = defineAsyncComponent(() => import('./components/set-role-data-scope.vue'))
 const UserSelect = defineAsyncComponent(() => import('/@/views/admin/user/components/user-select.vue'))
 const MyDropdownMore = defineAsyncComponent(() => import('/@/components/my-dropdown-more/index.vue'))
-const MySplitter = defineAsyncComponent(() => import('/@/components/my-layout/splitter.vue'))
 
 const { proxy } = getCurrentInstance() as any
 
@@ -192,7 +192,7 @@ const onQuery = async () => {
     state.roleFormTreeData = listToTree(cloneDeep(res.data).filter((a) => a.parentId === 0))
     if (state.roleTreeData.length > 0 && state.roleTreeData[0].children?.length > 0) {
       nextTick(() => {
-        roleTableRef.value!.setCurrentRow(state.roleTreeData[0].children[0])
+        roleTableRef.value?.setCurrentRow(state.roleTreeData[0].children[0])
       })
     }
   } else {

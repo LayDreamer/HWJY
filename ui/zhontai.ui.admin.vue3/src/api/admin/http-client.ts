@@ -12,8 +12,6 @@
 
 import axios, { AxiosInstance, AxiosRequestConfig, HeadersDefaults, RawAxiosRequestHeaders, ResponseType } from 'axios'
 import { ElLoading, ElMessage, LoadingOptions } from 'element-plus'
-import { AuthApi } from '/@/api/admin/Auth'
-import { useUserInfo } from '/@/stores/userInfo'
 import { t, lang } from '/@/i18n'
 
 export type QueryParamsType = Record<string | number, any>
@@ -278,6 +276,9 @@ export class HttpClient<SecurityDataType = unknown> {
       body = JSON.stringify(body)
     }
 
+    // Defer app-level dependencies until the base client and API subclasses are initialized.
+    const { useUserInfo } = await import('/@/stores/userInfo')
+
     // 请求拦截
     const requestInterceptor = this.instance.interceptors.request.use(
       (config) => {
@@ -309,7 +310,10 @@ export class HttpClient<SecurityDataType = unknown> {
             // 同一登录会话共享刷新结果，失败也必须结束所有等待请求。
             if (!tokenRefresh || tokenRefresh.token !== accessToken) {
               const refreshPromise: Promise<string> = Promise.resolve()
-                .then(() => new AuthApi().refresh({ refreshToken: tokenInfo.refreshToken! }, { login: false, showErrorMessage: false }))
+                .then(async () => {
+                  const { AuthApi } = await import('/@/api/admin/Auth')
+                  return new AuthApi().refresh({ refreshToken: tokenInfo.refreshToken! }, { login: false, showErrorMessage: false })
+                })
                 .then((res) => {
                   if (!res?.success || !res.data?.accessToken) {
                     throw new Error(t('登录已失效，请重新登录'))
