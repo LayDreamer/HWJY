@@ -1,5 +1,23 @@
 {
   "DbConfig": {
-
+    "type": "MySql",
+    "connectionString": "Server=127.0.0.1;Port=3306;Database=admincore_host;User ID=root;Pooling=true;MinimumPoolSize=1;Allow User Variables=true",
+    "createDb": false,
+    "syncStructure": false,
+    "syncData": false,
+    "syncUpdateData": false,
+    "generateData": false,
+    "dbs": [
+      {
+        "key": "logdb",
+        "type": "MySql",
+        "connectionString": "Server=127.0.0.1;Port=3306;Database=admincore_host_log;User ID=root;Pooling=true;MinimumPoolSize=1;Allow User Variables=true",
+        "createDb": false,
+        "syncStructure": false,
+        "syncData": false,
+        "syncUpdateData": false,
+        "generateData": false
+      }
+    ]
   }
 }
