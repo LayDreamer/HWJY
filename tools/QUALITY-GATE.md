@@ -18,6 +18,19 @@ pwsh -NoProfile -File tools/run-quality-gate.ps1 -Mode Local
 
 ## 完整验收依赖
 
+### 默认开发宿主与 MySQL
+
+`ZhonTai.Admin.Host/ConfigCenter/dbconfig.json` 保留 SQLite 基础默认值和原有初始化行为。仅 Development 环境加载 `dbconfig.Development.json` 后使用 MySQL：主库为 `127.0.0.1:3306/admincore_host`，日志库为 `admincore_host_log`。开发覆盖中自动建库、结构同步、种子同步、种子更新和造数均关闭，只连接现有数据库；原 SQLite 文件保留，不自动迁移数据。
+
+Development 连接示例没有密码。启动前，应从本机凭据管理器或开发终端向**当前进程**注入以下完整连接串，分别对应主库和日志库：
+
+- `DbConfig__ConnectionString`
+- `DbConfig__Dbs__0__ConnectionString`
+
+ConfigCenter 先加载基础 `名称.json`，再加载当前环境的 `名称.环境名.json`，同层按文件名排序，排除其他环境后缀文件。Development 宿主最后应用这两个连接覆盖值，凭据不需要写入源码或 `launchSettings.json`。启动命令为 `dotnet run --project src/modules/admin/ZhonTai.Admin.Host/ZhonTai.Admin.Host.csproj`；当前 Kestrel HTTP 端口为 18010，可通过 `/health/ready` 检查两个数据库，`/health/live` 检查进程存活。
+
+开发连接示例中的 `root` 仅是本地连接占位；实际账号随完整连接串注入，日常运行应使用已配置的业务账号。上述修改不等于完成 Production 部署，也不注册或持久化本机密码。其他验收环境继续使用自己的显式隔离配置，不读取这两个 Development 覆盖项。
+
 ### 自动化验收连接
 
 `Full` 入口现在自动创建和管理 **`127.0.0.1:33306` 的独立 MySQL 8 实例**。本地和 CI 使用相同入口，不再手工提供验收连接串。每次从全新数据目录初始化四个库，测试会创建结构、初始化种子并执行迁移、回滚和隔离验证；不从 3306 复制业务数据，也不复用其历史验收库。

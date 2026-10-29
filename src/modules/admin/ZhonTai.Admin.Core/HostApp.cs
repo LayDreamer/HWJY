@@ -1,4 +1,4 @@
-﻿using AspNetCoreRateLimit;
+using AspNetCoreRateLimit;
 using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using FluentValidation;
@@ -74,14 +74,14 @@ public class HostApp
     readonly HostAppOptions _hostAppOptions;
 
     /// <summary>
-    /// 添加配置文件
+    /// 添加配置文件和开发环境连接覆盖
     /// </summary>
     /// <param name="configuration">配置</param>
     /// <param name="environmentName">环境名</param>
     /// <param name="directory">目录</param>
     /// <param name="optional">可选</param>
     /// <param name="reloadOnChange">热更新</param>
-    private static void AddJsonFilesFromDirectory(
+    private static void AddConfigCenterConfiguration(
         ConfigurationManager configuration,
         string environmentName,
         string directory = "ConfigCenter",
@@ -94,15 +94,32 @@ public class HostApp
             : Path.Combine(AppContext.BaseDirectory, directory).ToPath();
 
         var allFilePaths = Directory.GetFiles(configCenterDirectory)
-            .Where(p => p.EndsWith($".json", StringComparison.OrdinalIgnoreCase));
+            .Where(p => p.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(p => p, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 
-        var environmentFilePaths = allFilePaths.Where(p => p.EndsWith($".{environmentName}.json", StringComparison.OrdinalIgnoreCase));
-        var otherFilePaths = allFilePaths.Except(environmentFilePaths);
-        var filePaths = otherFilePaths.Concat(environmentFilePaths);
+        // ConfigCenter uses name.json for base settings and name.Environment.json for overrides.
+        // Never load another environment's settings as base configuration.
+        var baseFilePaths = allFilePaths.Where(p => !Path.GetFileNameWithoutExtension(p).Contains('.'));
+        var environmentFilePaths = allFilePaths.Where(p => !string.IsNullOrWhiteSpace(environmentName)
+            && p.EndsWith($".{environmentName}.json", StringComparison.OrdinalIgnoreCase));
+        var filePaths = baseFilePaths.Concat(environmentFilePaths);
 
         foreach (var filePath in filePaths)
         {
             configuration.AddJsonFile(filePath, optional: optional, reloadOnChange: reloadOnChange);
+        }
+
+        if (string.Equals(environmentName, Environments.Development, StringComparison.OrdinalIgnoreCase))
+        {
+            // Local credentials take precedence without overriding isolated acceptance configuration.
+            var connections = new Dictionary<string, string>();
+            foreach (var key in new[] { "DbConfig:ConnectionString", "DbConfig:Dbs:0:ConnectionString" })
+            {
+                var value = Environment.GetEnvironmentVariable(key.Replace(":", "__"));
+                if (!string.IsNullOrWhiteSpace(value)) connections[key] = value;
+            }
+            if (connections.Count > 0) configuration.AddInMemoryCollection(connections);
         }
     }
 
@@ -163,7 +180,7 @@ public class HostApp
             var configCenterPath = configuration["ADMINCORE_CONFIGCENTER_PATH"]
                 ?? Environment.GetEnvironmentVariable("ADMINCORE_CONFIGCENTER_PATH")
                 ?? appSettings.ConfigCenterPath;
-            AddJsonFilesFromDirectory(configuration, env.EnvironmentName, configCenterPath);
+            AddConfigCenterConfiguration(configuration, env.EnvironmentName, configCenterPath);
             services.Configure<AppConfig>(configuration.GetSection("AppConfig"));
             services.Configure<JwtConfig>(configuration.GetSection("JwtConfig"));
             services.Configure<DbConfig>(configuration.GetSection("DbConfig"));
