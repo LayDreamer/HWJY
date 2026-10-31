@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using FreeScheduler;
 using FreeSql;
@@ -98,7 +99,8 @@ public sealed class AdminCoreAdmissionTests
                 (firstScheduler as IDisposable)?.Dispose();
             }
 
-            var executed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var executed = new TaskCompletionSource<TaskLog>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var executionCount = 0;
             using (var restartedDb = BuildSqlite(path))
             {
                 SyncScheduler(restartedDb);
@@ -106,14 +108,26 @@ public sealed class AdminCoreAdmissionTests
                     .UseStorage(restartedDb)
                     .OnExecuting(task =>
                     {
-                        if (task.Id == taskId) executed.TrySetResult(true);
+                        if (task.Id == taskId) Interlocked.Increment(ref executionCount);
+                    })
+                    .OnExecuted((task, log) =>
+                    {
+                        if (task.Id == taskId) executed.TrySetResult(log);
                     })
                     .Build();
 
-                Assert.True(restartedScheduler.ExistsTask(taskId));
-                restartedScheduler.RunNowTask(taskId);
-                await executed.Task.WaitAsync(TimeSpan.FromSeconds(10));
-                (restartedScheduler as IDisposable)?.Dispose();
+                try
+                {
+                    Assert.True(restartedScheduler.ExistsTask(taskId));
+                    restartedScheduler.RunNowTask(taskId);
+                    var log = await executed.Task.WaitAsync(TimeSpan.FromSeconds(10));
+                    Assert.True(log.Success, log.Exception);
+                    Assert.Equal(1, executionCount);
+                }
+                finally
+                {
+                    (restartedScheduler as IDisposable)?.Dispose();
+                }
             }
         }
         finally
