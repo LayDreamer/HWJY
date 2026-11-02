@@ -822,7 +822,7 @@ public partial class UserService : BaseService, IUserService, IDynamicApi
         }
 
         //新密码加密
-        if (_appConfig.PasswordHasher)
+        if (_appConfig.PasswordHasher || entity.PasswordEncryptType == PasswordEncryptType.PasswordHasher)
         {
             entity.Password = _passwordHasher.Value.HashPassword(entity, input.NewPassword);
             entity.PasswordEncryptType = PasswordEncryptType.PasswordHasher;
@@ -859,9 +859,10 @@ public partial class UserService : BaseService, IUserService, IDynamicApi
         }
 
         var entity = await _userRep.GetAsync(input.Id);
-        if (entity.PasswordEncryptType == PasswordEncryptType.PasswordHasher)
+        if (_appConfig.PasswordHasher || entity.PasswordEncryptType == PasswordEncryptType.PasswordHasher)
         {
             entity.Password = _passwordHasher.Value.HashPassword(entity, password);
+            entity.PasswordEncryptType = PasswordEncryptType.PasswordHasher;
         }
         else
         {

@@ -105,7 +105,7 @@ public partial class FileService : BaseService, IFileService, IDynamicApi
             else
             {
                 var env = LazyGetRequiredService<IWebHostEnvironment>();
-                var filePath = Path.Combine(env.WebRootPath, file.FileDirectory, file.SaveFileName + file.Extension).ToPath();
+                var filePath = ResolveLocalFilePath(env, file.FileDirectory, file.SaveFileName + file.Extension);
                 if (System.IO.File.Exists(filePath))
                 {
                     System.IO.File.Delete(filePath);
@@ -148,20 +148,40 @@ public partial class FileService : BaseService, IFileService, IDynamicApi
         var oSSOptions = _oSSConfig.OSSConfigs.Where(a => a.Enable && a.Provider == _oSSConfig.Provider).FirstOrDefault();
         var enableOss = oSSOptions != null && oSSOptions.Enable;
         var enableMd5 = enableOss ? oSSOptions.Md5 : localUploadConfig.Md5;
+        var localEnvironment = enableOss ? null : LazyGetRequiredService<IWebHostEnvironment>();
+        var fileGuid = FreeUtil.NewMongodbId();
+        var originalFileName = Path.GetFileNameWithoutExtension(file.FileName);
+        var saveFileName = fileReName ? fileGuid.ToString() : originalFileName;
+        if (fileDirectory.IsNull())
+        {
+            fileDirectory = localUploadConfig.Directory;
+            if (localUploadConfig.DateTimeDirectory.NotNull())
+            {
+                fileDirectory = Path.Combine(fileDirectory, DateTime.Now.ToString(localUploadConfig.DateTimeDirectory)).ToPath();
+            }
+        }
+
+        if (!enableOss)
+        {
+            var validatedPath = ResolveLocalFilePath(localEnvironment, fileDirectory, saveFileName + extention);
+            fileDirectory = Path.GetRelativePath(localEnvironment.WebRootPath, Path.GetDirectoryName(validatedPath)).ToPath();
+        }
         var md5 = string.Empty;
         if (enableMd5)
         {
             md5 = MD5Encrypt.GetHash(file.OpenReadStream());
-            var md5FileEntity = await _fileRep.WhereIf(enableOss, a => a.Provider == oSSOptions.Provider).Where(a => a.Md5 == md5).FirstAsync();
+            var md5FileEntity = await _fileRep.WhereIf(!enableOss, a => a.Provider == null).WhereIf(enableOss, a => a.Provider == oSSOptions.Provider).Where(a => a.Md5 == md5).FirstAsync();
             if (md5FileEntity != null)
             {
+                if (!enableOss)
+                    ResolveLocalFilePath(localEnvironment, md5FileEntity.FileDirectory, md5FileEntity.SaveFileName + md5FileEntity.Extension);
                 var sameFileEntity = new FileEntity
                 {
                     Provider = md5FileEntity.Provider,
                     BucketName = md5FileEntity.BucketName,
-                    FileGuid = FreeUtil.NewMongodbId(),
+                    FileGuid = fileGuid,
                     SaveFileName = md5FileEntity.SaveFileName,
-                    FileName = Path.GetFileNameWithoutExtension(file.FileName),
+                    FileName = originalFileName,
                     Extension = extention,
                     FileDirectory = md5FileEntity.FileDirectory,
                     Size = md5FileEntity.Size,
@@ -174,29 +194,20 @@ public partial class FileService : BaseService, IFileService, IDynamicApi
             }
         }
 
-        if (fileDirectory.IsNull())
-        {
-            fileDirectory = localUploadConfig.Directory;
-            if (localUploadConfig.DateTimeDirectory.NotNull())
-            {
-                fileDirectory = Path.Combine(fileDirectory, DateTime.Now.ToString(localUploadConfig.DateTimeDirectory)).ToPath();
-            }
-        }
-
         var fileSize = new FileSize(fileLenth);
         var fileEntity = new FileEntity
         {
             Provider = oSSOptions?.Provider,
             BucketName = oSSOptions?.BucketName,
-            FileGuid = FreeUtil.NewMongodbId(),
-            FileName = Path.GetFileNameWithoutExtension(file.FileName),
+            FileGuid = fileGuid,
+            FileName = originalFileName,
             Extension = extention,
             FileDirectory = fileDirectory,
             Size = fileSize.Size,
             SizeFormat = fileSize.ToString(),
             Md5 = md5
         };
-        fileEntity.SaveFileName = fileReName ? fileEntity.FileGuid.ToString() : fileEntity.FileName;
+        fileEntity.SaveFileName = saveFileName;
 
         var filePath = Path.Combine(fileDirectory, fileEntity.SaveFileName + fileEntity.Extension).ToPath();
         var url = string.Empty;
@@ -255,19 +266,23 @@ public partial class FileService : BaseService, IFileService, IDynamicApi
         else
         {
             var uploadHelper = LazyGetRequiredService<UploadHelper>();
-            var env = LazyGetRequiredService<IWebHostEnvironment>();
-            fileDirectory = Path.Combine(env.WebRootPath, fileDirectory).ToPath();
-            if (!Directory.Exists(fileDirectory))
-            {
-                Directory.CreateDirectory(fileDirectory);
-            }
-            filePath = Path.Combine(env.WebRootPath, filePath).ToPath();
-            await uploadHelper.SaveAsync(file, filePath);
+            var localPath = ResolveLocalFilePath(localEnvironment, fileEntity.FileDirectory, fileEntity.SaveFileName + fileEntity.Extension);
+            Directory.CreateDirectory(Path.GetDirectoryName(localPath));
+            await uploadHelper.SaveAsync(file, localPath);
         }
 
         fileEntity = await _fileRep.InsertAsync(fileEntity);
 
         return fileEntity;
+    }
+
+    private string ResolveLocalFilePath(IWebHostEnvironment environment, string directory, string fileName)
+    {
+        try
+        {
+            return UploadHelper.ResolveLocalFilePath(environment.WebRootPath, _oSSConfig.LocalUploadConfig.Directory, directory, fileName);
+        }
+        catch (ArgumentException exception) { throw ResultOutput.Exception(exception.Message); }
     }
 
     /// <summary>

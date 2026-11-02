@@ -1042,9 +1042,10 @@ public partial class AuthService : BaseService, IAuthService, IAuthClientService
             throw ResultOutput.Exception(_adminLocalizer["账号不存在"]);
         }
 
-        if (user.PasswordEncryptType == PasswordEncryptType.PasswordHasher)
+        if (_appConfig.Value.PasswordHasher || user.PasswordEncryptType == PasswordEncryptType.PasswordHasher)
         {
             user.Password = _passwordHasher.Value.HashPassword(user, input.NewPassword);
+            user.PasswordEncryptType = PasswordEncryptType.PasswordHasher;
         }
         else
         {
@@ -1108,9 +1109,10 @@ public partial class AuthService : BaseService, IAuthService, IAuthClientService
             throw ResultOutput.Exception(_adminLocalizer["账号不存在"]);
         }
 
-        if (user.PasswordEncryptType == PasswordEncryptType.PasswordHasher)
+        if (_appConfig.Value.PasswordHasher || user.PasswordEncryptType == PasswordEncryptType.PasswordHasher)
         {
             user.Password = _passwordHasher.Value.HashPassword(user, input.NewPassword);
+            user.PasswordEncryptType = PasswordEncryptType.PasswordHasher;
         }
         else
         {
