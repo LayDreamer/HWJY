@@ -30,7 +30,7 @@ namespace ZhonTai.Admin.Tests.Acceptance;
 /// 与 MySql8ProviderSchemaAndTransactionAreAccepted 的区别：后者只验证 Provider 层，
 /// 本测试启动完整 HostApp（结构同步 + 种子数据 + 任务调度表 + 真实 HTTP 管线）并指向 MySQL。
 /// </summary>
-public sealed class HostMySqlAcceptanceTests
+public sealed partial class HostMySqlAcceptanceTests
 {
     private const string EnvName = "HostMySqlAcceptance";
     private const string MainConnectionVariable = "ADMINCORE_HOST_MYSQL";

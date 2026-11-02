@@ -139,9 +139,9 @@ public class AppConfig
     public DynamicApiConfig DynamicApi { get; set; } = new DynamicApiConfig();
 
     /// <summary>
-    /// 实现标准标识密码哈希
+    /// 新密码默认使用标准哈希；旧账号仍按记录的加密类型验证。
     /// </summary>
-    public bool PasswordHasher { get; set; } = false;
+    public bool PasswordHasher { get; set; } = true;
 
     /// <summary>
     /// 最大请求大小
