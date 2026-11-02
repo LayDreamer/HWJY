@@ -106,7 +106,7 @@ export const useThemeConfig = defineStore('themeConfig', {
       // 是否开启水印
       isWatermark: false,
       // 水印文案
-      watermarkText: '中台Admin',
+      watermarkText: '后台管理系统',
 
       /**
        * 其它设置
@@ -139,11 +139,11 @@ export const useThemeConfig = defineStore('themeConfig', {
        * 全局网站标题 / 副标题
        */
       // 网站主标题（菜单导航、浏览器当前网页标题）
-      globalTitle: '中台Admin',
+      globalTitle: '后台管理系统',
       // 网站副标题（登录页顶部文字）
-      globalViceTitle: '中台Admin',
+      globalViceTitle: '后台管理系统',
       // 网站副标题（登录页顶部文字）
-      globalViceTitleMsg: '后台权限管理框架',
+      globalViceTitleMsg: '账号与权限管理',
       // 默认初始语言，可选值"<zh-cn|en|zh-tw>"，默认 zh-cn
       globalI18n: 'zh-cn',
       // 默认全局组件大小，可选值"<large|'default'|small>"，默认 'large'
@@ -152,7 +152,13 @@ export const useThemeConfig = defineStore('themeConfig', {
   }),
   actions: {
     setThemeConfig(data: ThemeConfigState) {
-      this.themeConfig = data.themeConfig
+      const config = { ...data.themeConfig }
+      // 只迁移旧默认品牌，保留用户自定义标题与其他布局设置。
+      for (const key of ['globalTitle', 'globalViceTitle', 'watermarkText'] as const) {
+        if (['中台Admin', 'Zhontai Admin'].includes(config[key])) config[key] = '后台管理系统'
+      }
+      if (config.globalViceTitleMsg === '后台权限管理框架') config.globalViceTitleMsg = '账号与权限管理'
+      this.themeConfig = config
     },
   },
 })

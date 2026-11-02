@@ -93,7 +93,7 @@ const state = reactive({
     code: '',
     codeId: '',
     password: '',
-    corpName: '中台',
+    corpName: '后台管理系统',
   } as AuthRegByMobileInput & { agree: false },
 })
 const { form } = toRefs(state)

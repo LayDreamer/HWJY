@@ -17,9 +17,6 @@ public sealed class GateCoverageTests
         {
             var factData = method.GetCustomAttributesData().FirstOrDefault(attribute => typeof(FactAttribute).IsAssignableFrom(attribute.AttributeType));
             if (factData == null) continue;
-            // The retired Material fixture is the only intentional exclusion.
-            if (type == typeof(HostMySqlAcceptanceTests) && method.Name == "MaterialApiUsesJwtRbacAndRoleOrgDataIsolationOnMySql8") continue;
-            if (type == typeof(SchedulerIsolationTest)) continue; // Legacy BaseTest uses machine-specific configuration.
             var traits = type.GetCustomAttributesData().Concat(method.GetCustomAttributesData())
                 .Where(attribute => attribute.AttributeType == typeof(TraitAttribute)).ToArray();
             Assert.Contains(traits, trait => (string)trait.ConstructorArguments[0].Value == "P0Gate" && (string)trait.ConstructorArguments[1].Value == "Required");

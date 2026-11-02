@@ -249,13 +249,3 @@ public sealed class MySqlAdmissionFactAttribute : FactAttribute
             Skip = P0MySqlAcceptanceEnvironment.Missing("ADMINCORE_ACCEPTANCE_MYSQL");
     }
 }
-
-public sealed class SchedulerIsolationTest : BaseTest
-{
-    [Fact]
-    public void ApiHostDoesNotAcceptPersistentTaskTriggers()
-    {
-        var scheduler = GetRequiredService<Scheduler>();
-        Assert.False(scheduler.GetPersistentTaskRuntimeState().AcceptingNewTriggers);
-    }
-}

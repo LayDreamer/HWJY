@@ -33,8 +33,6 @@ export const commonRoutes = [
   },
 ]
 
-export const exampleRoutes: Array<RouteRecordRaw> = []
-
 export const dynamicRoutes: Array<RouteRecordRaw> = [
   {
     path: '/',

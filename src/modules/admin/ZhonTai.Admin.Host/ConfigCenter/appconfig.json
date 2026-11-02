@@ -49,7 +49,7 @@
       "enableAutoSync": false,
       "projects": [
         {
-          "name": "中台Admin权限管理",
+          "name": "后台管理系统",
           "code": "admin",
           "version": "v10.0.3",
           "description": ""
@@ -65,7 +65,7 @@
       //页脚
       "footer": {
         "enable": false,
-        "content": "Copyright<a-icon type=\"copyright\" /> 2022-<a target=\"_blank\" href=\"https://www.zhontai.net\">中台Admin</a>"
+        "content": "后台管理系统"
       }
     },
     //MiniProfiler性能分析器

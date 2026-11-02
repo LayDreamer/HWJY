@@ -1,8 +1,7 @@
 <template>
   <div class="layout-footer pb15">
     <div class="layout-footer-warp">
-      <div>{{ t('中台Admin') }}</div>
-      <div class="mt5">{{ t('Copyright © 2022 中台Admin All rights reserved.') }}</div>
+      <div>{{ t('后台管理系统') }}</div>
     </div>
   </div>
 </template>

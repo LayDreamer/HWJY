@@ -116,7 +116,7 @@ export const useUserInfo = defineStore('userInfo', {
         // 水印文案
         const storesThemeConfig = useThemeConfig()
         if (storesThemeConfig.themeConfig.isWatermark) {
-          storesThemeConfig.themeConfig.watermarkText = user?.watermarkText || '中台Admin'
+          storesThemeConfig.themeConfig.watermarkText = !user?.watermarkText || ['中台Admin', 'Zhontai Admin'].includes(user.watermarkText) ? '后台管理系统' : user.watermarkText
           Watermark.set(storesThemeConfig.themeConfig.watermarkText)
           Local.remove('themeConfig')
           Local.set('themeConfig', storesThemeConfig.themeConfig)

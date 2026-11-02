@@ -1,10 +1,7 @@
-// 字体图标 url
+// 字体资源随应用发布，不依赖外部 CDN。
 const cssCdnUrlList: Array<string> = [
-  //兼容国内项目
-  '//at.alicdn.com/t/c/font_2298093_rnp72ifj3ba.css',
-  //'//cdn.bootcdn.net/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css',
-  //兼容国内外项目
-  '//cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css',
+  `${import.meta.env.BASE_URL}fonts/iconfont/iconfont.css`,
+  `${import.meta.env.BASE_URL}fonts/font-awesome/font-awesome.css`,
 ]
 // 第三方 js url
 const jsCdnUrlList: Array<string> = []

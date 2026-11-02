@@ -74,11 +74,11 @@ pwsh -NoProfile -File tools/test-mysql-isolation.ps1 -MySqlBinaryDirectory 'D:/t
 
 迁移清单校验 SQL 文件的原始字节。`.gitattributes` 对 `database/mysql/**/*.sql` 禁用换行转换，保留已批准制品的字节与校验和；编辑器也不得自动转换这些文件的换行。Windows 的 `core.autocrlf` 不应改变迁移制品，清单及数据库迁移历史中的校验和保持一致。
 
-`Local` 显式排除 `P0Dependency=MySql` 的验收。旧 Material 冒烟夹具和使用机器默认 Host 配置的旧 `SchedulerIsolationTest` 不属于此 Gate；调度持久化和 API/Worker 隔离分别由隔离 SQLite 准入测试与 T4 Host 验收覆盖。
+`Local` 显式排除 `P0Dependency=MySql` 的验收。调度持久化和 API/Worker 隔离分别由隔离 SQLite 准入测试与 T4 Host 验收覆盖。
 
 ## 模块与运行时依赖检查
 
-`RepositoryBoundaryTests` 读取真实 `.csproj` 引用，禁止 Core 反向依赖业务实现、平台依赖业务模块、Contracts 依赖实现、跨模块直接引用实现，以及正式项目依赖旧 MasterData 夹具。正式模块必须进入 Release solution 并生成程序集；检查编译后的类型引用，拒绝访问其他模块的 Entity、Repository、FreeSql 等内部类型。平台 Core 的公共基类和同一模块内部访问保留。旧 MasterData 按其 README 的历史夹具规则排除。
+`RepositoryBoundaryTests` 读取真实 `.csproj` 引用，禁止 Core 反向依赖业务实现、平台依赖业务模块、Contracts 依赖实现、跨模块直接引用实现。正式模块必须进入 Release solution 并生成程序集；检查编译后的类型引用，拒绝访问其他模块的 Entity、Repository、FreeSql 等内部类型。平台 Core 的公共基类和同一模块内部访问保留，业务工程不设历史夹具豁免。
 
 健康检查启用后：
 

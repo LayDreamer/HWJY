@@ -15,3 +15,5 @@ dotnet run --project tools/AdminCore.P0.Release -- rollback --version 20260916.0
 ```
 
 Production configuration starts from `deploy/admincore/templates/dbconfig.Production.template.json`. Deploy it outside the Host's automatic ConfigCenter, inject connection strings and manifest path with the deployment system, and keep every automatic database/structure/seed switch disabled.
+
+Explicit development menu cleanup and its rollback are documented in [maintenance/README.md](maintenance/README.md). These data-maintenance scripts are separate from the release manifest and are never applied automatically at startup.
