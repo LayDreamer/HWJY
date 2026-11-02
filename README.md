@@ -14,8 +14,6 @@ HWJY 是基于 .NET 10 和 Vue 3 的后台管理系统，提供 API、认证授�
 以下内容不属于当前业务运行范围：
 
 - PMC、APS、MES 等企业业务模块已删除，不应作为现有功能或启动目标；
-- `src/modules/company/Company.Platform` 仅保留公共能力边界说明，未实现独立业务功能；
-- `src/modules/company/Company.MasterData` 是历史 Material 冒烟夹具，不在 `ZhonTai.sln`、正式前端路由或权限种子中；
 - `src/gateways/ZhonTai.Gateway.Yarp.Host` 是未纳入主解决方案的独立网关工程，主系统启动不依赖它。
 
 ## 目录说明
@@ -27,7 +25,7 @@ src/
   modules/admin/ZhonTai.Admin.Tests/  xUnit 测试
   platform/                           公共平台能力
   gateways/                           独立网关工程
-  modules/company/                    企业模块边界与历史夹具
+  modules/company/                    业务扩展约定
 ui/zhontai.ui.admin.vue3/             Vue 3 管理前端
 database/                              MySQL 发布物及迁移清单
 ```

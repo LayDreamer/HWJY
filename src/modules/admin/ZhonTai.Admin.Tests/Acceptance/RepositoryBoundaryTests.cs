@@ -30,14 +30,14 @@ public sealed class RepositoryBoundaryTests
         var violations = new List<string>();
         foreach (var project in projects)
         {
-            if (IsLegacyFixture(project) || IsTest(project)) continue;
+            if (IsTest(project)) continue;
             foreach (var reference in XDocument.Load(project).Descendants("ProjectReference"))
             {
                 var include = (string)reference.Attribute("Include");
                 Assert.False(string.IsNullOrEmpty(include) || include.Contains("$("), "Unresolved ProjectReference: " + project);
                 var target = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(project), include.Replace('\\', Path.DirectorySeparatorChar)));
                 Assert.True(File.Exists(target), "Missing referenced project: " + target);
-                if (IsLegacyFixture(target) || !IsAllowed(project, target))
+                if (!IsAllowed(project, target))
                     violations.Add(Path.GetFileNameWithoutExtension(project) + " -> " + Path.GetFileNameWithoutExtension(target));
             }
         }
@@ -61,7 +61,7 @@ public sealed class RepositoryBoundaryTests
         var root = RepositoryRoot;
         var solution = File.ReadAllText(Path.Combine(root, "src", "ZhonTai.sln"));
         var projects = Directory.GetFiles(Path.Combine(root, "src", "modules"), "*.csproj", SearchOption.AllDirectories)
-            .Where(path => !IsLegacyFixture(path) && !IsTest(path)).ToArray();
+            .Where(path => !IsTest(path)).ToArray();
         var byAssembly = projects.ToDictionary(path => Path.GetFileNameWithoutExtension(path), StringComparer.Ordinal);
         var outputDirectory = new DirectoryInfo(AppContext.BaseDirectory);
         var configuration = outputDirectory.Parent.Name;
@@ -96,7 +96,6 @@ public sealed class RepositoryBoundaryTests
 
     private static string ProjectPath(string directory) => Path.Combine(RepositoryRoot, "src", directory.Replace('/', Path.DirectorySeparatorChar), directory.Split('/')[^1] + ".csproj");
     private static string Normalized(string path) => path.Replace('\\', '/');
-    private static bool IsLegacyFixture(string path) => Normalized(path).Contains("/company/Company.MasterData/", StringComparison.Ordinal);
     private static bool IsTest(string path) => Path.GetFileNameWithoutExtension(path).EndsWith(".Tests", StringComparison.Ordinal);
     private static bool IsCore(string path) => Path.GetFileNameWithoutExtension(path) == "ZhonTai.Admin.Core";
     private static string Module(string path)

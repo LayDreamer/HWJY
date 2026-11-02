@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     v-model="showLoginDialog"
-    :title="$t('欢迎登录中台账号')"
+    :title="$t('欢迎登录后台管理系统')"
     draggable
     append-to-body
     :close-on-click-modal="false"
