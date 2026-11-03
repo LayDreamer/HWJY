@@ -38,6 +38,8 @@ pnpm dev
 
 开发服务器默认端口为 `9011`（由 `.env` 的 `VITE_PORT` 配置），请以终端实际输出的访问地址为准。开发 API 地址由 `.env.development` 的 `VITE_API_URL` 配置，当前为 `http://localhost:18010`；使用系统功能前需按根 README 启动后端。
 
+本机需要覆盖 API 地址时，在本目录创建不纳入 Git 的 `.env.development.local`，设置 `VITE_API_URL` 后重启开发服务。开发服务器直接提供 `/env.config.js`；启动和构建都不改写受 Git 跟踪的 `public/env.config.js`，该静态文件保留，无需为日常开发手工切换其地址。
+
 ## 构建与验证
 
 以下命令均在 `ui/zhontai.ui.admin.vue3` 目录执行。开发服务持续占用当前终端，可另开终端或先停止服务。
@@ -49,6 +51,8 @@ pnpm build
 ```
 
 构建入口会校验路径、清理并重建本目录下的 `dist/`，不要在其中存放需要保留的文件。
+
+生产 API 地址取自 `.env.production`（本机覆盖可用 `.env.production.local`）或构建进程的 `VITE_API_URL`；现有默认值 `http://localhost:16010` 是部署占位。构建只在 `dist/env.config.js` 生成对应配置，部署后可以编辑此文件调整 API 地址，无需重新编译前端；下次构建会重新生成它。浏览器继续使用 `window.__ENV_CONFIG__`，上传和 API 客户端使用同一地址。
 
 与现有质量门禁一致的前端检查顺序：
 

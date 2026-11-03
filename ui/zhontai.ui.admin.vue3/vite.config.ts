@@ -5,9 +5,8 @@ import compression from 'vite-plugin-compression'
 import vueSetupExtend from 'vite-plugin-vue-setup-extend'
 import { loadEnv } from './src/utils/vite'
 import { svgIconsPlugin } from './tools/svg-icons.mjs'
+import { runtimeConfigPlugin } from './tools/runtime-config.mjs'
 import AutoImport from 'unplugin-auto-import/vite'
-import fs from 'node:fs'
-import path from 'node:path'
 
 const pathResolve = (dir: string): any => {
   return resolve(__dirname, '.', dir)
@@ -21,44 +20,10 @@ const alias: Record<string, string> = {
 const viteConfig = defineConfig(({ mode, command }: ConfigEnv) => {
   const env = loadEnv(mode)
 
-  // 更新 env.config.js 中的 VITE_API_URL
-  try {
-    const envConfigPath = path.resolve('./public/env.config.js')
-    let existingConfig = { VITE_API_URL: '' }
-
-    // 尝试读取现有配置
-    if (fs.existsSync(envConfigPath)) {
-      const fileContent = fs.readFileSync(envConfigPath, 'utf-8')
-      const configMatch = fileContent.match(/window\.__ENV_CONFIG__\s*=\s*(\{[\s\S]*?\})/)
-      if (configMatch && configMatch[1]) {
-        try {
-          // 将字符串转换为对象
-          const configObj = Function('return ' + configMatch[1])()
-          if (typeof configObj === 'object') {
-            existingConfig = configObj
-          }
-        } catch (e) {
-          console.warn('解析现有配置失败，将保留部分配置', e)
-        }
-      }
-    }
-
-    // 只更新 VITE_API_URL
-    existingConfig.VITE_API_URL = env.VITE_API_URL
-
-    // 写入更新后的配置
-    fs.writeFileSync(
-      envConfigPath,
-      `window.__ENV_CONFIG__ = ${JSON.stringify(existingConfig, null, 2)}
-`
-    )
-  } catch (e) {
-    console.error('更新 env.config.js 失败', e)
-  }
-
   return {
     plugins: [
       vue(),
+      runtimeConfigPlugin(env.VITE_API_URL),
       vueSetupExtend(),
       compression({
         threshold: 5121,

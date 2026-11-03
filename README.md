@@ -53,32 +53,19 @@ pwsh -NoProfile -Command '$PSVersionTable.PSVersion'
 
 ## 启动后端
 
-在 `HWJY` 仓库根目录的 PowerShell 7 终端执行。首次获取仓库或后端依赖发生变化时先恢复依赖：
+在 `HWJY` 仓库根目录的 PowerShell 7 终端使用统一的日常启动入口：
 
 ```powershell
-dotnet restore src/ZhonTai.sln
+./tools/start-dev.ps1
 ```
 
-每次新开后端终端，需要从本机凭据管理器注入上述两个完整连接串，或使用以下交互方式输入 MySQL 开发账号和密码。连接串构造器负责处理密码中的特殊字符，命令不会输出连接串：
+入口先恢复依赖并构建当前工程的 Release，构建成功后才启动同一份输出，使用 `Development` 环境及工程目录下的配置和 WebRoot。不依赖临时验收发布目录，也不提供跳过构建的选项。按 `Ctrl+C` 停止，再次执行同一命令即可运行最新代码。
 
-```powershell
-$mysqlCredential = Get-Credential -Message '输入本机 MySQL 开发账号和密码'
-$mysqlConnection = [System.Data.Common.DbConnectionStringBuilder]::new()
-$mysqlConnection['Server'] = '127.0.0.1'
-$mysqlConnection['Port'] = 3306
-$mysqlConnection['User ID'] = $mysqlCredential.UserName
-$mysqlConnection['Password'] = $mysqlCredential.GetNetworkCredential().Password
-$mysqlConnection['Character Set'] = 'utf8mb4'
-$mysqlConnection['Database'] = 'admincore_host'
-$env:DbConfig__ConnectionString = $mysqlConnection.ConnectionString
-$mysqlConnection['Database'] = 'admincore_host_log'
-$env:DbConfig__Dbs__0__ConnectionString = $mysqlConnection.ConnectionString
-Remove-Variable mysqlCredential, mysqlConnection
+已在当前终端注入 `DbConfig__ConnectionString` 和 `DbConfig__Dbs__0__ConnectionString` 时直接复用；两项均未设置时，在构建成功后交互输入 MySQL 开发账号和密码，自动连接本机 3306 的 `admincore_host` 和 `admincore_host_log`。连接串构造器处理密码中的特殊字符，凭据仅保留在当前终端的进程环境中，同一终端重新启动无需再输入，不写文件或用户／系统环境变量。新终端需要重新注入或输入；更换账号时先清空这两项进程变量。
 
-dotnet run --project src/modules/admin/ZhonTai.Admin.Host
-```
+入口不会自动停止已有服务；18010 被占用时先退出，由开发者确认原进程后手动停止。不接受临时验收的 `ADMINCORE_CONFIGCENTER_PATH` 覆盖，也不执行数据库初始化或迁移。常规调试仍可使用项目的 Development 启动配置；手工使用 `--no-build` 前必须确保同一配置已构建成功，不能用旧输出代替最新源码。
 
-默认启动配置使用 `Development` 环境。浏览器访问 `http://localhost:18010`，接口文档地址为：
+浏览器访问 `http://localhost:18010`，接口文档地址为：
 
 ```text
 http://localhost:18010/doc/admin
@@ -96,10 +83,10 @@ Invoke-RestMethod http://localhost:18010/health/ready | ConvertTo-Json -Depth 5
 API 进程只管理任务定义；要执行持久化任务，需要另起一个 worker 进程：
 
 ```powershell
-dotnet run --project src/modules/admin/ZhonTai.Admin.Host -- --worker
+./tools/start-dev.ps1 -Worker
 ```
 
-worker 终端也需要先注入主库和日志库连接串。
+worker 终端同样复用两条连接变量，缺少时交互输入凭据；仍使用既有的本机随机监听端口。
 
 ## 启动前端
 
@@ -118,7 +105,7 @@ pnpm install --frozen-lockfile --registry=https://registry.npmjs.org
 pnpm dev
 ```
 
-前端访问地址为 `http://localhost:9011`。开发环境 API 地址由 `.env.development` 中的 `VITE_API_URL` 配置，当前为 `http://localhost:18010`。前端终端不需要数据库凭据。
+前端访问地址为 `http://localhost:9011`。开发环境 API 地址由 `.env.development` 中的 `VITE_API_URL` 配置，当前为 `http://localhost:18010`；本机覆盖写在不纳入 Git 的 `.env.development.local`，修改后重启开发服务。启动和构建不再改写 `public/env.config.js`；生产构建根据当前构建环境生成 `dist/env.config.js`，部署后仍可直接调整该产物中的 API 地址。前端终端不需要数据库凭据。
 
 生产构建（在前端目录另开终端执行，或先停止开发服务）：
 
