@@ -27,7 +27,7 @@ Development 连接示例没有密码。启动前，应从本机凭据管理器�
 - `DbConfig__ConnectionString`
 - `DbConfig__Dbs__0__ConnectionString`
 
-ConfigCenter 先加载基础 `名称.json`，再加载当前环境的 `名称.环境名.json`，同层按文件名排序，排除其他环境后缀文件。Development 宿主最后应用这两个连接覆盖值，凭据不需要写入源码或 `launchSettings.json`。启动命令为 `dotnet run --project src/modules/admin/ZhonTai.Admin.Host/ZhonTai.Admin.Host.csproj`；当前 Kestrel HTTP 端口为 18010，可通过 `/health/ready` 检查两个数据库，`/health/live` 检查进程存活。
+ConfigCenter 先加载基础 `名称.json`，再加载当前环境的 `名称.环境名.json`，同层按文件名排序，排除其他环境后缀文件。Development 宿主最后应用这两个连接覆盖值，凭据不需要写入源码或 `launchSettings.json`。日常在 PowerShell 7 执行 `./tools/start-dev.ps1`：先构建当前工程 Release，成功后使用 Development 配置启动同一份输出；复用当前终端的两条连接变量，均未设置时交互输入并仅在该终端保留。入口不复用临时验收发布目录、不自动停止已有进程，也不接受 `ADMINCORE_CONFIGCENTER_PATH` 覆盖。当前 Kestrel HTTP 端口为 18010，可通过 `/health/ready` 检查两个数据库，`/health/live` 检查进程存活。
 
 开发连接示例中的 `root` 仅是本地连接占位；实际账号随完整连接串注入，日常运行应使用已配置的业务账号。上述修改不等于完成 Production 部署，也不注册或持久化本机密码。其他验收环境继续使用自己的显式隔离配置，不读取这两个 Development 覆盖项。
 
